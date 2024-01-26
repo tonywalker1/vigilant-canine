@@ -1,2 +1,0 @@
-[workspace]
-members = ["vigilant-canine-daemon", "vigilant-canine-cli", "vigilant-canine-gui",]

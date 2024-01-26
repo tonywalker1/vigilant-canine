@@ -1,3 +1,5 @@
+/.github/
 /.idea/
-/target/
-/Cargo.lock
+/.kdev4/
+/.vscode/
+/build/
