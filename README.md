@@ -1,6 +1,6 @@
 # Vigilant Canine
 
-Simple Intrusion Detection/Prevention System (IDS/IPS) designed for average users.
+Simple, host-level Intrusion Detection System (IDS) designed for average users.
 
 # Introduction
 
@@ -24,7 +24,25 @@ software enabled and novice users could easily understand and use it.
   protect a few systems).
 - Could be shipped enabled by distributions.
 
+# Architecture
+
+Vigilant Canine uses a client-server architecture with privilege separation:
+
+- **vigilant-canined** — privileged daemon that monitors file integrity (fanotify) and system logs (journal)
+- **vigilant-canined-api** — unprivileged API daemon serving a REST-like interface over a Unix socket
+- **Web dashboard** — optional static-asset frontend for viewing alerts and system status
+- **Desktop notifications** — optional D-Bus client for real-time alert delivery
+
+See [docs/architecture.md](docs/architecture.md) for full details and rationale.
+
+# Status
+
+This project is in early development. The immediate focus is building the core daemon with file integrity monitoring.
+
 # Getting Started
+
+*Coming soon.*
 
 # Helping
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get involved.
