@@ -36,6 +36,21 @@ Client-server architecture with strict privilege separation:
 
 See `docs/architecture.md` for complete details on component responsibilities, technology rationale, privilege model, and phased detection roadmap.
 
+### Phase 1 Architecture Decisions
+
+**Event System**: Uses synchronous EventBus (pub/sub pattern) instead of Boost.Asio. This
+simplified Phase 1 implementation while maintaining clean component boundaries. Asio deferred
+to Phase 2 for log analysis work.
+
+**Daemon Main Loop**: Simple `while (!should_stop) { sleep(1); }` loop with signal handlers.
+The fanotify monitor and event bus handle actual work asynchronously. No complex thread pool
+needed for file integrity monitoring workload.
+
+**Package Verification**: On-demand verification via PackageVerifier class, not
+fanotify-based. Cleaner separation and simpler implementation.
+
+These decisions were validated through implementation - don't second-guess them in future work.
+
 ## Technology Stack
 
 - **Language**: C++ (primary), static HTML/JS (web UI)
