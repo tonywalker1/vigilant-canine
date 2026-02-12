@@ -114,4 +114,4 @@ Prevention (IPS) is a future goal, not immediate. Potential integration with fap
 
 ## License
 
-AGPLv3 — ensuring an open future for this software. See LICENSE for details.
+GPLv3 — ensuring an open future for this software. See LICENSE for details.
