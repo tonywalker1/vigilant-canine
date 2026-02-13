@@ -9,6 +9,7 @@ add_executable(alert_dispatcher_test
     ../../src/storage/database.cpp
     ../../src/core/hash.cpp
     ../../src/distro/detector.cpp
+    ../../src/notify/dbus_notifier.cpp
 )
 
 target_link_libraries(alert_dispatcher_test PRIVATE

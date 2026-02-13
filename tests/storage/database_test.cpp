@@ -6,6 +6,7 @@
 //
 
 #include <storage/database.h>
+#include <storage/schema.h>
 
 #include <gtest/gtest.h>
 
@@ -106,7 +107,7 @@ namespace vigilant_canine {
 
         ASSERT_EQ(rc, SQLITE_ROW);
         int version = sqlite3_column_int(stmt, 0);
-        EXPECT_EQ(version, 1);  // schema::CURRENT_VERSION
+        EXPECT_EQ(version, schema::CURRENT_VERSION);
 
         sqlite3_finalize(stmt);
     }
