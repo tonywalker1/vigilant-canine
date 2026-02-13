@@ -11,11 +11,8 @@ target_link_libraries(config_test PRIVATE
     ${OPENSSL_LIBRARIES}
     ${BLAKE3_LIBRARIES}
     tomlplusplus::tomlplusplus
+    hinder::hinder
 )
-
-if(HINDER_FOUND)
-    target_link_libraries(config_test PRIVATE hinder::hinder)
-endif()
 
 target_include_directories(config_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src

@@ -17,11 +17,8 @@ target_link_libraries(fanotify_monitor_test PRIVATE
     SQLite::SQLite3
     ${BLAKE3_LIBRARIES}
     ${OPENSSL_LIBRARIES}
+    hinder::hinder
 )
-
-if(HINDER_FOUND)
-    target_link_libraries(fanotify_monitor_test PRIVATE hinder::hinder)
-endif()
 
 target_include_directories(fanotify_monitor_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src

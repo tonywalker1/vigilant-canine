@@ -49,19 +49,8 @@ FetchContent_MakeAvailable(cpp-httplib)
 
 # BLAKE3 - use system package (blake3-devel)
 
-# Hinder - local build or system package
-# Option 1: Use as subdirectory (requires symlink or copy in external/hinder)
-# Option 2: Use find_package if installed
-# For now, assume external/hinder exists (user can symlink their local Hinder)
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/hinder/CMakeLists.txt)
-    add_subdirectory(external/hinder)
-    set(HINDER_FOUND TRUE)
-else()
-    message(STATUS "Hinder not found in external/hinder")
-    message(STATUS "Please symlink your Hinder source:")
-    message(STATUS "  ln -s /var/home/tony/Development/personal/hinder external/hinder")
-    set(HINDER_FOUND FALSE)
-endif()
+# Hinder - use system package
+find_package(hinder REQUIRED)
 
 # Main daemon executable
 add_executable(vigilant-canined
@@ -99,11 +88,8 @@ target_link_libraries(vigilant-canined PRIVATE
     ${BLAKE3_LIBRARIES}
     ${AUDIT_LIBRARIES}
     tomlplusplus::tomlplusplus
+    hinder::hinder
 )
-
-if(HINDER_FOUND)
-    target_link_libraries(vigilant-canined PRIVATE hinder::hinder)
-endif()
 
 target_include_directories(vigilant-canined PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -144,11 +130,8 @@ target_link_libraries(vigilant-canined-api PRIVATE
     ${BLAKE3_LIBRARIES}
     tomlplusplus::tomlplusplus
     httplib::httplib
+    hinder::hinder
 )
-
-if(HINDER_FOUND)
-    target_link_libraries(vigilant-canined-api PRIVATE hinder::hinder)
-endif()
 
 target_include_directories(vigilant-canined-api PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src

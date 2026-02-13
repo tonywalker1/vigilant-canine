@@ -9,11 +9,8 @@ target_link_libraries(hash_test PRIVATE
     GTest::gtest_main
     ${OPENSSL_LIBRARIES}
     ${BLAKE3_LIBRARIES}
+    hinder::hinder
 )
-
-if(HINDER_FOUND)
-    target_link_libraries(hash_test PRIVATE hinder::hinder)
-endif()
 
 target_include_directories(hash_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src

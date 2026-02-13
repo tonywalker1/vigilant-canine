@@ -18,11 +18,8 @@ target_link_libraries(alert_dispatcher_test PRIVATE
     ${SYSTEMD_LIBRARIES}
     ${BLAKE3_LIBRARIES}
     ${OPENSSL_LIBRARIES}
+    hinder::hinder
 )
-
-if(HINDER_FOUND)
-    target_link_libraries(alert_dispatcher_test PRIVATE hinder::hinder)
-endif()
 
 target_include_directories(alert_dispatcher_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src
