@@ -182,7 +182,7 @@ namespace vigilant_canine {
 
         // If version is 0, this is a new database
         if (current_version == 0) {
-            // Create all tables
+            // Create all tables (Phase 1)
             if (auto result = execute(schema::DDL_BASELINES); !result) return result;
             if (auto result = execute(schema::DDL_BASELINES_IDX_PATH); !result) return result;
             if (auto result = execute(schema::DDL_BASELINES_IDX_SOURCE); !result) return result;
@@ -194,16 +194,44 @@ namespace vigilant_canine {
 
             if (auto result = execute(schema::DDL_SCANS); !result) return result;
 
+            // Phase 2: Journal events
+            if (auto result = execute(schema::DDL_JOURNAL_EVENTS); !result) return result;
+            if (auto result = execute(schema::DDL_JOURNAL_EVENTS_IDX_RULE); !result) return result;
+            if (auto result = execute(schema::DDL_JOURNAL_EVENTS_IDX_CREATED); !result) return result;
+
+            // Phase 3: Audit events
+            if (auto result = execute(schema::DDL_AUDIT_EVENTS); !result) return result;
+            if (auto result = execute(schema::DDL_AUDIT_EVENTS_IDX_RULE); !result) return result;
+            if (auto result = execute(schema::DDL_AUDIT_EVENTS_IDX_TYPE); !result) return result;
+            if (auto result = execute(schema::DDL_AUDIT_EVENTS_IDX_CREATED); !result) return result;
+            if (auto result = execute(schema::DDL_AUDIT_EVENTS_IDX_UID); !result) return result;
+
             // Set schema version
             if (auto result = set_schema_version(schema::CURRENT_VERSION); !result) {
                 return result;
             }
         }
         else if (current_version < schema::CURRENT_VERSION) {
-            // Future: migration logic here
-            return std::unexpected(std::format(
-                "Schema migration not yet implemented (current: {}, required: {})",
-                current_version, schema::CURRENT_VERSION));
+            // Schema migrations
+            if (current_version == 1) {
+                // Migrate v1 → v2: Add journal_events table
+                if (auto result = execute(schema::DDL_JOURNAL_EVENTS); !result) return result;
+                if (auto result = execute(schema::DDL_JOURNAL_EVENTS_IDX_RULE); !result) return result;
+                if (auto result = execute(schema::DDL_JOURNAL_EVENTS_IDX_CREATED); !result) return result;
+                if (auto result = set_schema_version(2); !result) return result;
+                current_version = 2;
+            }
+
+            if (current_version == 2) {
+                // Migrate v2 → v3: Add audit_events table
+                if (auto result = execute(schema::DDL_AUDIT_EVENTS); !result) return result;
+                if (auto result = execute(schema::DDL_AUDIT_EVENTS_IDX_RULE); !result) return result;
+                if (auto result = execute(schema::DDL_AUDIT_EVENTS_IDX_TYPE); !result) return result;
+                if (auto result = execute(schema::DDL_AUDIT_EVENTS_IDX_CREATED); !result) return result;
+                if (auto result = execute(schema::DDL_AUDIT_EVENTS_IDX_UID); !result) return result;
+                if (auto result = set_schema_version(3); !result) return result;
+                current_version = 3;
+            }
         }
         else if (current_version > schema::CURRENT_VERSION) {
             return std::unexpected(std::format(

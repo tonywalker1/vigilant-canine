@@ -122,6 +122,58 @@ namespace vigilant_canine {
     };
 
     //
+    // Process execution event (Phase 3).
+    //
+    struct ProcessExecutionEvent {
+        std::uint32_t pid;
+        std::uint32_t ppid;
+        std::uint32_t uid;
+        std::string username;
+        FilePath exe_path;
+        std::string command_line;                // Sanitized
+        std::optional<std::string> cwd;
+    };
+
+    //
+    // Network connection event (Phase 3).
+    //
+    struct NetworkConnectionEvent {
+        std::uint32_t pid;
+        std::uint32_t uid;
+        std::string username;
+        std::string protocol;                    // "tcp", "udp"
+        std::string local_addr;
+        std::uint16_t local_port;
+        std::string remote_addr;
+        std::uint16_t remote_port;
+    };
+
+    //
+    // Failed access event (Phase 3).
+    //
+    struct FailedAccessEvent {
+        std::uint32_t pid;
+        std::uint32_t uid;
+        std::string username;
+        FilePath path;
+        std::string access_type;                 // "read", "write", "execute"
+        std::int32_t error_code;
+        std::string error_message;
+    };
+
+    //
+    // Privilege change event (Phase 3).
+    //
+    struct PrivilegeChangeEvent {
+        std::uint32_t pid;
+        std::uint32_t old_uid;
+        std::uint32_t new_uid;
+        std::string old_username;
+        std::string new_username;
+        std::string operation;                   // "setuid", "seteuid", "setresuid"
+    };
+
+    //
     // Event variant containing all possible event types.
     //
     using EventData = std::variant<
@@ -134,7 +186,11 @@ namespace vigilant_canine {
         AuthFailureEvent,
         PrivilegeEscalationEvent,
         ServiceStateEvent,
-        SuspiciousLogEvent
+        SuspiciousLogEvent,
+        ProcessExecutionEvent,
+        NetworkConnectionEvent,
+        FailedAccessEvent,
+        PrivilegeChangeEvent
     >;
 
     //

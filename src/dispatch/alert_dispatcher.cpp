@@ -219,6 +219,60 @@ namespace vigilant_canine {
                                              event_data.priority,
                                              event_data.message);
             }
+            // Phase 3 events
+            else if constexpr (std::is_same_v<T, ProcessExecutionEvent>) {
+                alert.category = "process_execution";
+                alert.summary = std::format("Process executed: {} by {}",
+                                             (*event_data.exe_path).string(),
+                                             event_data.username);
+                alert.path = event_data.exe_path;
+                std::string details_str = std::format("PID: {}\nPPID: {}\nUID: {}\nCommand: {}",
+                                                       event_data.pid,
+                                                       event_data.ppid,
+                                                       event_data.uid,
+                                                       event_data.command_line);
+                if (event_data.cwd) {
+                    details_str += std::format("\nCWD: {}", *event_data.cwd);
+                }
+                alert.details = details_str;
+            } else if constexpr (std::is_same_v<T, NetworkConnectionEvent>) {
+                alert.category = "network_connection";
+                alert.summary = std::format("Network connection by {} ({})",
+                                             event_data.username,
+                                             event_data.protocol);
+                alert.details = std::format("PID: {}\nUID: {}\nProtocol: {}\nLocal: {}:{}\nRemote: {}:{}",
+                                             event_data.pid,
+                                             event_data.uid,
+                                             event_data.protocol,
+                                             event_data.local_addr,
+                                             event_data.local_port,
+                                             event_data.remote_addr,
+                                             event_data.remote_port);
+            } else if constexpr (std::is_same_v<T, FailedAccessEvent>) {
+                alert.category = "failed_access";
+                alert.summary = std::format("Failed {} access to {} by {}",
+                                             event_data.access_type,
+                                             (*event_data.path).string(),
+                                             event_data.username);
+                alert.path = event_data.path;
+                alert.details = std::format("PID: {}\nUID: {}\nError: {} ({})",
+                                             event_data.pid,
+                                             event_data.uid,
+                                             event_data.error_message,
+                                             event_data.error_code);
+            } else if constexpr (std::is_same_v<T, PrivilegeChangeEvent>) {
+                alert.category = "privilege_change";
+                alert.summary = std::format("Privilege change: {} → {}",
+                                             event_data.old_username,
+                                             event_data.new_username);
+                alert.details = std::format("PID: {}\nOld UID: {} ({})\nNew UID: {} ({})\nOperation: {}",
+                                             event_data.pid,
+                                             event_data.old_uid,
+                                             event_data.old_username,
+                                             event_data.new_uid,
+                                             event_data.new_username,
+                                             event_data.operation);
+            }
         }, event.data);
 
         return alert;

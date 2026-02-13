@@ -117,6 +117,34 @@ namespace vigilant_canine {
     };
 
     //
+    // Phase 3: Audit monitoring configuration.
+    //
+    struct AuditFieldMatchConfig {
+        std::string field;
+        std::string pattern;
+        std::string type{"contains"};  // "exact", "contains", "regex", "starts_with", "numeric_eq", "numeric_gt", "numeric_lt"
+        bool negate{false};
+    };
+
+    struct AuditRuleConfig {
+        std::string name;
+        std::string description;
+        std::vector<AuditFieldMatchConfig> match;
+        std::string action{"suspicious_syscall"};
+        std::string severity{"warning"};
+        bool enabled{true};
+        std::uint32_t syscall_filter{0};
+    };
+
+    struct AuditConfig {
+        bool enabled{true};
+        bool sanitize_command_lines{true};
+        std::vector<std::string> exclude_comms;
+        std::vector<std::uint32_t> exclude_uids;
+        std::vector<AuditRuleConfig> rules;
+    };
+
+    //
     // Top-level configuration structure.
     //
     struct Config {
@@ -127,6 +155,7 @@ namespace vigilant_canine {
         ScanConfig scan;
         JournalConfig journal;          // Phase 2
         CorrelationConfig correlation;  // Phase 2
+        AuditConfig audit;              // Phase 3
     };
 
     //

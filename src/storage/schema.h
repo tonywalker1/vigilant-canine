@@ -13,7 +13,7 @@
 namespace vigilant_canine::schema {
 
     // Current schema version
-    inline constexpr int CURRENT_VERSION = 2;  // Phase 2: added journal_events
+    inline constexpr int CURRENT_VERSION = 3;  // Phase 3: added audit_events
 
     // Schema version table
     inline constexpr std::string_view DDL_SCHEMA_VERSION = R"(
@@ -109,6 +109,38 @@ CREATE INDEX IF NOT EXISTS idx_journal_events_rule ON journal_events(rule_name)
 
     inline constexpr std::string_view DDL_JOURNAL_EVENTS_IDX_CREATED = R"(
 CREATE INDEX IF NOT EXISTS idx_journal_events_created ON journal_events(created_at)
+)";
+
+    // Phase 3: Audit events table
+    inline constexpr std::string_view DDL_AUDIT_EVENTS = R"(
+CREATE TABLE IF NOT EXISTS audit_events (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_name    TEXT NOT NULL,
+    event_type   TEXT NOT NULL,
+    pid          INTEGER,
+    uid          INTEGER,
+    username     TEXT,
+    exe_path     TEXT,
+    command_line TEXT,
+    details      TEXT,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+)
+)";
+
+    inline constexpr std::string_view DDL_AUDIT_EVENTS_IDX_RULE = R"(
+CREATE INDEX IF NOT EXISTS idx_audit_events_rule ON audit_events(rule_name)
+)";
+
+    inline constexpr std::string_view DDL_AUDIT_EVENTS_IDX_TYPE = R"(
+CREATE INDEX IF NOT EXISTS idx_audit_events_type ON audit_events(event_type)
+)";
+
+    inline constexpr std::string_view DDL_AUDIT_EVENTS_IDX_CREATED = R"(
+CREATE INDEX IF NOT EXISTS idx_audit_events_created ON audit_events(created_at)
+)";
+
+    inline constexpr std::string_view DDL_AUDIT_EVENTS_IDX_UID = R"(
+CREATE INDEX IF NOT EXISTS idx_audit_events_uid ON audit_events(uid)
 )";
 
 }  // namespace vigilant_canine::schema
