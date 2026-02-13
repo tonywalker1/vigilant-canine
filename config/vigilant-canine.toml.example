@@ -1,0 +1,101 @@
+#
+# Vigilant Canine Configuration Example
+#
+# This is a sample configuration file showing all available options with their
+# default values. Copy this file to /etc/vigilant-canine/config.toml and customize
+# as needed.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Tony Walker
+#
+
+[daemon]
+# Log level: trace, debug, info, warn, error
+log_level = "info"
+
+# Database path for storing baselines and alerts
+db_path = "/var/lib/vigilant-canine/vc.db"
+
+# Worker threads (0 = auto-detect based on CPU cores)
+worker_threads = 0
+
+[hash]
+# Hash algorithm: blake3 (only blake3 is currently supported)
+algorithm = "blake3"
+
+[monitor.system]
+# Additional system paths to monitor (beyond package-managed files)
+# These paths are monitored for unauthorized changes
+paths = [
+    "/etc",
+    "/boot",
+    "/usr/local/bin",
+    "/usr/local/sbin",
+]
+
+# Paths to exclude from monitoring (supports globs)
+exclude = [
+    "/etc/machine-id",
+    "/etc/hostname",
+    "/etc/resolv.conf",
+    "/etc/shadow",
+    "/etc/shadow-",
+    "/etc/passwd-",
+    "/etc/group-",
+    "/etc/gshadow-",
+]
+
+[monitor.flatpak]
+# Monitor Flatpak applications for tampering
+enabled = true
+
+# Monitor system-wide Flatpak installations
+system = true
+
+# Monitor per-user Flatpak installations
+user = false
+
+[monitor.ostree]
+# Monitor OSTree deployments (for rpm-ostree/Fedora Silverblue systems)
+enabled = true
+
+# Verify deployment checksums on boot
+verify_deployments = true
+
+# Monitor the OSTree object store for integrity
+monitor_object_store = true
+
+[monitor.home]
+# Monitor user home directories (disabled by default for privacy)
+enabled = false
+
+# Specific paths in home directories to monitor
+# Only used if monitor.home.enabled = true
+paths = [
+    "~/.ssh",
+    "~/.gnupg",
+]
+
+# Exclude patterns for home directory monitoring
+exclude = [
+    "~/.cache",
+    "~/.local/share/Trash",
+]
+
+[alerts]
+# Log alerts to systemd journal
+journal = true
+
+# Send desktop notifications via D-Bus
+dbus = true
+
+# Make alerts available via Unix domain socket
+# (for API daemon and dashboard)
+socket = true
+
+[scan]
+# Baseline scan schedule: "daily", "weekly", "monthly", or cron expression
+schedule = "daily"
+
+# Perform full baseline scan on boot
+on_boot = true
