@@ -81,6 +81,47 @@ namespace vigilant_canine {
     };
 
     //
+    // Authentication failure event (Phase 2).
+    //
+    struct AuthFailureEvent {
+        std::string username;
+        std::string service;                     // "sshd", "sudo", "login"
+        std::optional<std::string> remote_host;
+        std::string message;
+    };
+
+    //
+    // Privilege escalation event (Phase 2).
+    //
+    struct PrivilegeEscalationEvent {
+        std::string username;
+        std::string target_user;                 // e.g., "root"
+        std::string method;                      // "sudo", "su", "pkexec"
+        std::string command;
+        std::string message;
+    };
+
+    //
+    // Service state change event (Phase 2).
+    //
+    struct ServiceStateEvent {
+        std::string unit_name;                   // e.g., "sshd.service"
+        std::string new_state;                   // "started", "stopped", "failed"
+        std::optional<std::string> exit_code;
+        std::string message;
+    };
+
+    //
+    // Suspicious log entry event (Phase 2).
+    //
+    struct SuspiciousLogEvent {
+        std::string rule_name;                   // Rule that matched
+        std::string unit_name;
+        std::string message;
+        std::uint8_t priority;                   // Journal PRIORITY (0-7)
+    };
+
+    //
     // Event variant containing all possible event types.
     //
     using EventData = std::variant<
@@ -89,7 +130,11 @@ namespace vigilant_canine {
         FileDeletedEvent,
         FilePermissionChangedEvent,
         ScanCompletedEvent,
-        SystemStartupEvent
+        SystemStartupEvent,
+        AuthFailureEvent,
+        PrivilegeEscalationEvent,
+        ServiceStateEvent,
+        SuspiciousLogEvent
     >;
 
     //

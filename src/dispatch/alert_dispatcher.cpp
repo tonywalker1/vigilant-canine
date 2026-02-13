@@ -8,6 +8,7 @@
 #include <dispatch/alert_dispatcher.h>
 
 #include <distro/detector.h>
+#include <notify/dbus_notifier.h>
 
 #include <systemd/sd-journal.h>
 
@@ -18,8 +19,12 @@ namespace vigilant_canine {
 
     AlertDispatcher::AlertDispatcher(EventBus& event_bus,
                                       AlertStore& alert_store,
-                                      AlertDispatcherConfig config)
-        : m_event_bus(event_bus), m_alert_store(alert_store), m_config(config) {}
+                                      AlertDispatcherConfig config,
+                                      DbusNotifier* dbus_notifier)
+        : m_event_bus(event_bus),
+          m_alert_store(alert_store),
+          m_config(config),
+          m_dbus_notifier(dbus_notifier) {}
 
     AlertDispatcher::~AlertDispatcher() {
         stop();
@@ -29,18 +34,22 @@ namespace vigilant_canine {
         : m_event_bus(other.m_event_bus),
           m_alert_store(other.m_alert_store),
           m_config(other.m_config),
+          m_dbus_notifier(other.m_dbus_notifier),
           m_running(other.m_running),
           m_subscription(std::move(other.m_subscription)) {
         other.m_running = false;
+        other.m_dbus_notifier = nullptr;
     }
 
     AlertDispatcher& AlertDispatcher::operator=(AlertDispatcher&& other) noexcept {
         if (this != &other) {
             stop();
             m_config = other.m_config;
+            m_dbus_notifier = other.m_dbus_notifier;
             m_running = other.m_running;
             m_subscription = std::move(other.m_subscription);
             other.m_running = false;
+            other.m_dbus_notifier = nullptr;
         }
         return *this;
     }
@@ -169,6 +178,47 @@ namespace vigilant_canine {
                 alert.details = std::format("Distribution type: {}",
                                              to_string(event_data.distro_type));
             }
+            // Phase 2 events
+            else if constexpr (std::is_same_v<T, AuthFailureEvent>) {
+                alert.category = "auth_failure";
+                alert.summary = std::format("Authentication failure: {} on {}",
+                                             event_data.username,
+                                             event_data.service);
+                alert.details = event_data.message;
+                if (event_data.remote_host) {
+                    alert.details = std::format("{}\nRemote host: {}",
+                                                 alert.details.value_or(""),
+                                                 *event_data.remote_host);
+                }
+            } else if constexpr (std::is_same_v<T, PrivilegeEscalationEvent>) {
+                alert.category = "privilege_escalation";
+                alert.summary = std::format("Privilege escalation: {} -> {} via {}",
+                                             event_data.username,
+                                             event_data.target_user,
+                                             event_data.method);
+                alert.details = std::format("Command: {}\n{}",
+                                             event_data.command,
+                                             event_data.message);
+            } else if constexpr (std::is_same_v<T, ServiceStateEvent>) {
+                alert.category = "service_state";
+                alert.summary = std::format("Service {}: {}",
+                                             event_data.unit_name,
+                                             event_data.new_state);
+                alert.details = event_data.message;
+                if (event_data.exit_code) {
+                    alert.details = std::format("{}\nExit code: {}",
+                                                 alert.details.value_or(""),
+                                                 *event_data.exit_code);
+                }
+            } else if constexpr (std::is_same_v<T, SuspiciousLogEvent>) {
+                alert.category = "suspicious_log";
+                alert.summary = std::format("Suspicious log entry (rule: {})",
+                                             event_data.rule_name);
+                alert.details = std::format("Unit: {}\nPriority: {}\nMessage: {}",
+                                             event_data.unit_name,
+                                             event_data.priority,
+                                             event_data.message);
+            }
         }, event.data);
 
         return alert;
@@ -193,10 +243,11 @@ namespace vigilant_canine {
         );
     }
 
-    void AlertDispatcher::send_dbus_notification(Alert const& /* alert */) {
-        // TODO: Implement D-Bus notification
-        // This will send a signal on the session bus that the notification client can listen to
-        // For now, this is a no-op
+    void AlertDispatcher::send_dbus_notification(Alert const& alert) {
+        // Phase 2: Use DbusNotifier if available
+        if (m_dbus_notifier && m_dbus_notifier->is_available()) {
+            m_dbus_notifier->notify(alert);
+        }
     }
 
 }  // namespace vigilant_canine

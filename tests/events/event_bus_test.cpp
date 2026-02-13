@@ -149,8 +149,42 @@ namespace vigilant_canine {
             "content changed"
         };
 
+        // Phase 2 events
+        AuthFailureEvent auth_failure{
+            "testuser",
+            "sshd",
+            "192.168.1.100",
+            "Failed password for testuser"
+        };
+
+        PrivilegeEscalationEvent priv_esc{
+            "testuser",
+            "root",
+            "sudo",
+            "/usr/bin/systemctl restart httpd",
+            "testuser : TTY=pts/0 ; PWD=/home/testuser ; USER=root ; COMMAND=/usr/bin/systemctl restart httpd"
+        };
+
+        ServiceStateEvent service_state{
+            "sshd.service",
+            "failed",
+            "1",
+            "sshd.service: Main process exited, code=exited, status=1/FAILURE"
+        };
+
+        SuspiciousLogEvent suspicious_log{
+            "kernel_segfault",
+            "kernel",
+            "segfault at 0 ip 00007f8b9c9d9e20 sp 00007ffce8b0e8a0 error 4 in libc.so.6",
+            3  // LOG_ERR
+        };
+
         EXPECT_EQ(event_type_name(file_created), "FileCreated");
         EXPECT_EQ(event_type_name(file_modified), "FileModified");
+        EXPECT_EQ(event_type_name(auth_failure), "AuthFailure");
+        EXPECT_EQ(event_type_name(priv_esc), "PrivilegeEscalation");
+        EXPECT_EQ(event_type_name(service_state), "ServiceState");
+        EXPECT_EQ(event_type_name(suspicious_log), "SuspiciousLog");
     }
 
     TEST(EventBusTest, SeverityNames) {

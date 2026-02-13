@@ -73,6 +73,50 @@ namespace vigilant_canine {
     };
 
     //
+    // Phase 2: Journal monitoring configuration.
+    //
+    struct JournalFieldMatchConfig {
+        std::string field;
+        std::string pattern;
+        std::string type{"contains"};  // "exact", "contains", "regex", "starts_with"
+        bool negate{false};
+    };
+
+    struct JournalRuleConfig {
+        std::string name;
+        std::string description;
+        std::vector<JournalFieldMatchConfig> match;
+        std::string action{"suspicious_log"};
+        std::string severity{"warning"};
+        bool enabled{true};
+    };
+
+    struct JournalConfig {
+        bool enabled{true};
+        std::uint8_t max_priority{6};  // LOG_INFO
+        std::vector<std::string> exclude_units;
+        std::vector<std::string> exclude_identifiers;
+        std::vector<JournalRuleConfig> rules;
+    };
+
+    //
+    // Phase 2: Event correlation configuration.
+    //
+    struct CorrelationRuleConfig {
+        std::string name;
+        std::string event_match;  // Rule name or event category
+        std::uint32_t threshold{5};
+        std::uint32_t window_seconds{60};
+        std::string escalated_severity{"critical"};
+    };
+
+    struct CorrelationConfig {
+        bool enabled{true};
+        std::uint32_t window_seconds{300};
+        std::vector<CorrelationRuleConfig> rules;
+    };
+
+    //
     // Top-level configuration structure.
     //
     struct Config {
@@ -81,6 +125,8 @@ namespace vigilant_canine {
         MonitorConfig monitor;
         AlertConfig alerts;
         ScanConfig scan;
+        JournalConfig journal;          // Phase 2
+        CorrelationConfig correlation;  // Phase 2
     };
 
     //

@@ -37,15 +37,16 @@ See [docs/architecture.md](docs/architecture.md) for full details and rationale.
 
 # Status
 
-**Phase 1 Complete:** File integrity monitoring daemon is functional with 210 passing tests.
+**Phase 2 Complete:** File integrity monitoring and log analysis daemon with ~126 passing tests.
 
-- ✅ File integrity monitoring via fanotify
-- ✅ Package verification (rpm/dpkg)
-- ✅ Desktop notifications via D-Bus
-- ✅ SQLite storage and TOML configuration
-- ⏳ systemd integration (in progress)
-- ⏳ API daemon and web dashboard (planned)
-- ⏳ Log analysis via systemd journal (Phase 2)
+- ✅ **Phase 1**: File integrity monitoring via fanotify
+- ✅ **Phase 1**: Package verification (rpm/dpkg)
+- ✅ **Phase 1**: SQLite storage and TOML configuration
+- ✅ **Phase 2**: Log analysis via systemd journal
+- ✅ **Phase 2**: Event correlation engine with time-windowed aggregation
+- ✅ **Phase 2**: Desktop notifications via D-Bus (freedesktop spec)
+- ⏳ systemd integration (packaging in progress)
+- ⏳ API daemon and web dashboard (Phase 3 planned)
 
 # Getting Started
 
@@ -57,22 +58,21 @@ See [docs/architecture.md](docs/architecture.md) for full details and rationale.
 - pkg-config
 
 ### Runtime Libraries
-- Boost (system component)
 - SQLite3
-- libsystemd
+- libsystemd (journal and D-Bus APIs)
 - OpenSSL (libcrypto)
 - BLAKE3 (libblake3)
 
 ### Fedora/RHEL
 ```bash
-sudo dnf install gcc-c++ cmake boost-devel sqlite-devel systemd-devel \
+sudo dnf install gcc-c++ cmake sqlite-devel systemd-devel \
                  openssl-devel blake3-devel pkg-config
 ```
 
 ### Debian/Ubuntu
 ```bash
-sudo apt install g++ cmake libboost-system-dev libsqlite3-dev \
-                 libsystemd-dev libssl-dev libblake3-dev pkg-config
+sudo apt install g++ cmake libsqlite3-dev libsystemd-dev \
+                 libssl-dev libblake3-dev pkg-config
 ```
 
 ## Building

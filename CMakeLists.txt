@@ -17,7 +17,6 @@ option(VC_BUILD_TESTS "Build tests" ON)
 option(VC_BUILD_BENCHMARKS "Build benchmarks" ON)
 
 # System dependencies
-find_package(Boost REQUIRED COMPONENTS system)
 find_package(SQLite3 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SYSTEMD REQUIRED libsystemd)
@@ -66,10 +65,14 @@ add_executable(vigilant-canined
     src/monitor/fanotify_monitor.cpp
     src/dispatch/alert_dispatcher.cpp
     src/policy/policy_engine.cpp
+    # Phase 2 components
+    src/journal/journal_rule.cpp
+    src/journal/journal_monitor.cpp
+    src/correlation/correlation_engine.cpp
+    src/notify/dbus_notifier.cpp
 )
 
 target_link_libraries(vigilant-canined PRIVATE
-    Boost::system
     SQLite::SQLite3
     ${SYSTEMD_LIBRARIES}
     ${OPENSSL_LIBRARIES}
