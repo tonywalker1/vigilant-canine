@@ -32,6 +32,14 @@ namespace vigilant_canine {
                 return "ServiceState";
             } else if constexpr (std::is_same_v<T, SuspiciousLogEvent>) {
                 return "SuspiciousLog";
+            } else if constexpr (std::is_same_v<T, ProcessExecutionEvent>) {
+                return "ProcessExecution";
+            } else if constexpr (std::is_same_v<T, NetworkConnectionEvent>) {
+                return "NetworkConnection";
+            } else if constexpr (std::is_same_v<T, FailedAccessEvent>) {
+                return "FailedAccess";
+            } else if constexpr (std::is_same_v<T, PrivilegeChangeEvent>) {
+                return "PrivilegeChange";
             }
             return "Unknown";
         }, data);

@@ -265,6 +265,68 @@ namespace vigilant_canine {
             return cfg;
         }
 
+        //
+        // Parse Phase 3: AuditConfig section.
+        //
+        auto parse_audit(toml::table const& root) -> AuditConfig {
+            AuditConfig cfg;
+
+            if (auto audit = root["audit"].as_table()) {
+                cfg.enabled = get_or(*audit, "enabled", cfg.enabled);
+                cfg.sanitize_command_lines = get_or(*audit, "sanitize_command_lines", cfg.sanitize_command_lines);
+
+                cfg.exclude_comms = parse_string_array((*audit)["exclude_comms"].as_array());
+
+                // Parse exclude_uids as integer array
+                if (auto uids_arr = (*audit)["exclude_uids"].as_array()) {
+                    for (auto const& uid_elem : *uids_arr) {
+                        if (auto uid = uid_elem.value<std::int64_t>()) {
+                            cfg.exclude_uids.push_back(static_cast<std::uint32_t>(*uid));
+                        }
+                    }
+                }
+
+                // Parse audit rules array
+                if (auto rules_arr = (*audit)["rules"].as_array()) {
+                    for (auto const& rule_elem : *rules_arr) {
+                        auto rule_table = rule_elem.as_table();
+                        if (!rule_table) continue;
+
+                        AuditRuleConfig rule;
+                        rule.name = get_or(*rule_table, "name", std::string{});
+                        rule.description = get_or(*rule_table, "description", std::string{});
+                        rule.action = get_or(*rule_table, "action", rule.action);
+                        rule.severity = get_or(*rule_table, "severity", rule.severity);
+                        rule.enabled = get_or(*rule_table, "enabled", rule.enabled);
+
+                        if (auto syscall = (*rule_table)["syscall_filter"].value<std::int64_t>()) {
+                            rule.syscall_filter = static_cast<std::uint32_t>(*syscall);
+                        }
+
+                        // Parse field matches
+                        if (auto matches_arr = (*rule_table)["match"].as_array()) {
+                            for (auto const& match_elem : *matches_arr) {
+                                auto match_table = match_elem.as_table();
+                                if (!match_table) continue;
+
+                                AuditFieldMatchConfig match;
+                                match.field = get_or(*match_table, "field", std::string{});
+                                match.pattern = get_or(*match_table, "pattern", std::string{});
+                                match.type = get_or(*match_table, "type", match.type);
+                                match.negate = get_or(*match_table, "negate", match.negate);
+
+                                rule.match.push_back(match);
+                            }
+                        }
+
+                        cfg.rules.push_back(rule);
+                    }
+                }
+            }
+
+            return cfg;
+        }
+
     }  // anonymous namespace
 
     auto load_config(std::filesystem::path const& path)
@@ -281,6 +343,7 @@ namespace vigilant_canine {
             cfg.scan = parse_scan(toml);
             cfg.journal = parse_journal(toml);            // Phase 2
             cfg.correlation = parse_correlation(toml);    // Phase 2
+            cfg.audit = parse_audit(toml);                // Phase 3
 
             return cfg;
         }
