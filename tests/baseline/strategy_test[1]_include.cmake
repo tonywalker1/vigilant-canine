@@ -1,0 +1,5 @@
+if(EXISTS "/home/tony/Development/personal/vigilant-canine/tests/baseline/strategy_test[1]_tests.cmake")
+  include("/home/tony/Development/personal/vigilant-canine/tests/baseline/strategy_test[1]_tests.cmake")
+else()
+  add_test(strategy_test_NOT_BUILT strategy_test_NOT_BUILT)
+endif()
