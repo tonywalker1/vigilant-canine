@@ -92,6 +92,12 @@ namespace vigilant_canine {
         [[nodiscard]] auto acknowledge(std::int64_t alert_id)
             -> std::expected<void, std::string>;
 
+        //
+        // Un-acknowledge an alert by id.
+        //
+        [[nodiscard]] auto unacknowledge(std::int64_t alert_id)
+            -> std::expected<void, std::string>;
+
     private:
         Database& m_db;
     };

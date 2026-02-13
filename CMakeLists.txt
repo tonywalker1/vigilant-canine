@@ -33,6 +33,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tomlplusplus)
 
+# cpp-httplib - header-only HTTP library with Unix socket support
+FetchContent_Declare(
+    cpp-httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG        v0.18.3
+    FIND_PACKAGE_ARGS NAMES httplib
+)
+# Set httplib options before making available
+set(HTTPLIB_REQUIRE_OPENSSL OFF)
+set(HTTPLIB_REQUIRE_ZLIB OFF)
+set(HTTPLIB_USE_OPENSSL_IF_AVAILABLE OFF)
+set(HTTPLIB_USE_ZLIB_IF_AVAILABLE OFF)
+FetchContent_MakeAvailable(cpp-httplib)
+
 # BLAKE3 - use system package (blake3-devel)
 
 # Hinder - local build or system package
@@ -105,6 +119,48 @@ target_compile_options(vigilant-canined PRIVATE
     ${OPENSSL_CFLAGS_OTHER}
 )
 
+# API daemon executable
+add_executable(vigilant-canined-api
+    src/api/main.cpp
+    src/api/http_server.cpp
+    src/api/handlers/health_handler.cpp
+    src/api/handlers/alert_handler.cpp
+    src/api/handlers/baseline_handler.cpp
+    src/api/handlers/event_handler.cpp
+    src/api/serialization/json.cpp
+    # Reuse storage layer
+    src/storage/database.cpp
+    src/storage/baseline_store.cpp
+    src/storage/alert_store.cpp
+    src/storage/audit_event_store.cpp
+    src/config/config.cpp
+    src/core/hash.cpp
+    src/events/event.cpp
+)
+
+target_link_libraries(vigilant-canined-api PRIVATE
+    SQLite::SQLite3
+    ${OPENSSL_LIBRARIES}
+    ${BLAKE3_LIBRARIES}
+    tomlplusplus::tomlplusplus
+    httplib::httplib
+)
+
+if(HINDER_FOUND)
+    target_link_libraries(vigilant-canined-api PRIVATE hinder::hinder)
+endif()
+
+target_include_directories(vigilant-canined-api PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${OPENSSL_INCLUDE_DIRS}
+    ${BLAKE3_INCLUDE_DIRS}
+)
+
+target_compile_options(vigilant-canined-api PRIVATE
+    -Wall -Wextra -Wpedantic
+    ${OPENSSL_CFLAGS_OTHER}
+)
+
 # Testing
 if(VC_BUILD_TESTS)
     enable_testing()
@@ -136,8 +192,8 @@ endif()
 # Installation
 include(GNUInstallDirs)
 
-# Binary
-install(TARGETS vigilant-canined
+# Binaries
+install(TARGETS vigilant-canined vigilant-canined-api
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
@@ -160,7 +216,9 @@ if(NOT TMPFILES_DIR)
     set(TMPFILES_DIR /usr/lib/tmpfiles.d)
 endif()
 
-install(FILES systemd/vigilant-canined.service
+install(FILES
+    systemd/vigilant-canined.service
+    systemd/vigilant-canined-api.service
     DESTINATION ${SYSTEMD_SYSTEM_UNIT_DIR}
 )
 

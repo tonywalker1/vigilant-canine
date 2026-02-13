@@ -38,6 +38,20 @@ namespace vigilant_canine {
         [[nodiscard]] static auto open(std::filesystem::path const& db_path)
             -> std::expected<Database, std::string>;
 
+        //
+        // Open database in read-only mode.
+        //
+        // Preconditions:
+        //   - db_path must exist (database must already be created)
+        //
+        // Postconditions:
+        //   - On success: database is open in read-only mode
+        //   - On failure: returns error message
+        //   - Schema initialization is skipped (database must already exist)
+        //
+        [[nodiscard]] static auto open_readonly(std::filesystem::path const& db_path)
+            -> std::expected<Database, std::string>;
+
         // Move-only type (SQLite connection is not copyable)
         Database(Database&& other) noexcept;
         Database& operator=(Database&& other) noexcept;

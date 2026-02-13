@@ -81,14 +81,43 @@ internal Unix socket for commands; reads alert and state data from the shared SQ
 
 Responsibilities:
 - Serve a REST-like API over a Unix domain socket (HTTP over UDS)
-- Authenticate and authorize client requests
-- Serve static web UI assets (optional)
+- Authenticate and authorize client requests (future)
+- Serve static web UI assets (optional, future)
 - Query alerts, baselines, and configuration state
+- Provide acknowledge/unacknowledge operations for alert triage
 
 Using a Unix socket by default means:
 - No network attack surface out of the box
 - Access control via file permissions on the socket
 - Can be proxied through nginx/caddy later if remote access is desired
+
+**Implementation Details:**
+
+Written in C++, using cpp-httplib for HTTP-over-Unix-socket support. The daemon:
+- Opens the SQLite database in read-write mode (for acknowledge operations only)
+- Provides RESTful JSON API endpoints (see docs/api.md)
+- Uses manual JSON serialization (no external JSON library dependency)
+- Implements pagination for large result sets (limit/offset parameters)
+- Returns structured error responses with error codes and messages
+
+**Security model:**
+- Runs as unprivileged user `vigilant-canine`
+- Unix socket created with 0660 permissions (owner and group only)
+- No detection rule modification allowed (read-only access to baselines)
+- Cannot trigger scans or modify monitoring behavior
+- Database access limited to reads and alert acknowledgment updates
+
+**API Endpoints:**
+- `GET /api/v1/health` - Health check
+- `GET /api/v1/alerts` - List alerts (paginated, filterable by acknowledged status)
+- `GET /api/v1/alerts/{id}` - Get specific alert
+- `POST /api/v1/alerts/{id}/acknowledge` - Mark alert as reviewed
+- `DELETE /api/v1/alerts/{id}/acknowledge` - Remove acknowledgment
+- `GET /api/v1/baselines` - List file integrity baselines (filterable by source)
+- `GET /api/v1/journal-events` - List journal log events
+- `GET /api/v1/audit-events` - List audit subsystem events
+
+See `docs/api.md` for complete API documentation.
 
 ### Web dashboard (optional)
 

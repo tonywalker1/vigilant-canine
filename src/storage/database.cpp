@@ -137,6 +137,29 @@ namespace vigilant_canine {
         return database;
     }
 
+    auto Database::open_readonly(std::filesystem::path const& db_path)
+        -> std::expected<Database, std::string> {
+
+        // Check that database file exists
+        if (!std::filesystem::exists(db_path)) {
+            return std::unexpected(
+                std::format("Database file does not exist: {}", db_path.string()));
+        }
+
+        // Open database in read-only mode
+        sqlite3* db = nullptr;
+        int rc = sqlite3_open_v2(db_path.c_str(), &db,
+                                 SQLITE_OPEN_READONLY, nullptr);
+        if (rc != SQLITE_OK) {
+            std::string error = sqlite3_errmsg(db);
+            sqlite3_close(db);
+            return std::unexpected(std::format("Failed to open database read-only: {}", error));
+        }
+
+        Database database{db};
+        return database;
+    }
+
     auto Database::execute(std::string_view sql) -> std::expected<void, std::string> {
         char* error_msg = nullptr;
         std::string sql_str{sql};  // Ensure null-termination

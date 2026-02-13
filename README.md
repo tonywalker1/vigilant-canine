@@ -48,8 +48,9 @@ See [docs/architecture.md](docs/architecture.md) for full details and rationale.
 - ✅ **Phase 3**: Linux audit subsystem integration (libaudit/libauparse)
 - ✅ **Phase 3**: Process execution tracking and user attribution
 - ✅ **Phase 3**: Multi-record event correlation with command-line sanitization
-- ⏳ systemd integration (packaging in progress)
-- ⏳ API daemon and web dashboard (planned, not required for core functionality)
+- ✅ **systemd integration**: Service files and installation support
+- ✅ **API daemon**: REST API over Unix socket for querying alerts and events
+- ⏳ **Web dashboard**: Static frontend (planned, not required for core functionality)
 
 # Getting Started
 
@@ -149,6 +150,34 @@ sudo journalctl -u vigilant-canined -f
 
 See [systemd/README.md](systemd/README.md) for complete installation, management, and troubleshooting instructions.
 
+## API Daemon (Optional)
+
+The API daemon provides a RESTful HTTP interface for querying alerts, baselines, and events:
+
+```bash
+# Start with systemd
+sudo systemctl enable --now vigilant-canined-api.service
+
+# Or run manually for testing
+./build/gcc-debug/vigilant-canined-api \
+    -s /tmp/api.sock \
+    -d /var/lib/vigilant-canine/vigilant-canine.db
+
+# Query health endpoint
+curl --unix-socket /tmp/api.sock http://localhost/api/v1/health
+
+# List recent alerts
+curl --unix-socket /tmp/api.sock \
+    'http://localhost/api/v1/alerts?limit=10'
+```
+
+See [docs/api.md](docs/api.md) for complete API documentation and endpoint details.
+
+A testing script is provided for manual verification:
+```bash
+./scripts/test-api.sh
+```
+
 ## Manual Execution (Development/Testing)
 
 For development or testing without systemd:
@@ -162,7 +191,7 @@ sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.tom
 ```
 ```
 
-**Note:** The core monitoring daemon is feature-complete with file integrity monitoring, log analysis, and audit subsystem integration. The API daemon and web dashboard are optional components planned for future releases.
+**Note:** The core monitoring daemon is feature-complete with file integrity monitoring, log analysis, and audit subsystem integration. The API daemon provides optional query capabilities for external tools and dashboards. A web dashboard frontend is planned for future releases.
 
 ## Initial Setup
 
@@ -182,6 +211,7 @@ You'll receive desktop notifications for security events detected across all mon
 
 - [Configuration Guide](docs/configuration.md) - Detailed configuration options and examples
 - [Architecture](docs/architecture.md) - System design and component responsibilities
+- [API Documentation](docs/api.md) - REST API endpoints and usage examples
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
 
 # Helping

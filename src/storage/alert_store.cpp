@@ -282,4 +282,31 @@ namespace vigilant_canine {
         return {};
     }
 
+    auto AlertStore::unacknowledge(std::int64_t alert_id)
+        -> std::expected<void, std::string> {
+
+        auto stmt_result = m_db.prepare(R"(
+            UPDATE alerts
+            SET acknowledged = 0
+            WHERE id = ?
+        )");
+
+        if (!stmt_result) {
+            return std::unexpected(stmt_result.error());
+        }
+
+        sqlite3_stmt* stmt = *stmt_result;
+        sqlite3_bind_int64(stmt, 1, alert_id);
+
+        int result_code = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+
+        if (result_code != SQLITE_DONE) {
+            return std::unexpected(std::format("Failed to unacknowledge alert: {}",
+                                                sqlite3_errmsg(m_db.handle())));
+        }
+
+        return {};
+    }
+
 }  // namespace vigilant_canine
