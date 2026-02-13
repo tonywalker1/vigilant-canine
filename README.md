@@ -37,7 +37,7 @@ See [docs/architecture.md](docs/architecture.md) for full details and rationale.
 
 # Status
 
-**Phase 2 Complete:** File integrity monitoring and log analysis daemon with ~126 passing tests.
+**Phase 3 Complete:** Full-featured host IDS with file integrity, log analysis, and audit monitoring.
 
 - ✅ **Phase 1**: File integrity monitoring via fanotify
 - ✅ **Phase 1**: Package verification (rpm/dpkg)
@@ -45,8 +45,11 @@ See [docs/architecture.md](docs/architecture.md) for full details and rationale.
 - ✅ **Phase 2**: Log analysis via systemd journal
 - ✅ **Phase 2**: Event correlation engine with time-windowed aggregation
 - ✅ **Phase 2**: Desktop notifications via D-Bus (freedesktop spec)
+- ✅ **Phase 3**: Linux audit subsystem integration (libaudit/libauparse)
+- ✅ **Phase 3**: Process execution tracking and user attribution
+- ✅ **Phase 3**: Multi-record event correlation with command-line sanitization
 - ⏳ systemd integration (packaging in progress)
-- ⏳ API daemon and web dashboard (Phase 3 planned)
+- ⏳ API daemon and web dashboard (planned, not required for core functionality)
 
 # Getting Started
 
@@ -123,7 +126,7 @@ sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.tom
 # systemd integration coming soon
 ```
 
-**Note:** Phase 1 focuses on the core monitoring daemon. The API daemon and web dashboard are planned for later phases.
+**Note:** The core monitoring daemon is feature-complete with file integrity monitoring, log analysis, and audit subsystem integration. The API daemon and web dashboard are optional components planned for future releases.
 
 ## Initial Setup
 
@@ -132,9 +135,12 @@ On first run, the daemon will:
 1. Create the database at the configured path (default: `/var/lib/vigilant-canine/vc.db`)
 2. Detect your distribution's package manager (rpm or dpkg)
 3. Build an initial baseline of package-managed files
-4. Begin monitoring for unauthorized changes
+4. Begin monitoring for:
+   - Unauthorized file modifications (fanotify)
+   - Suspicious log patterns (systemd journal)
+   - Process execution and privilege changes (Linux audit subsystem)
 
-You'll receive desktop notifications for any detected file modifications.
+You'll receive desktop notifications for security events detected across all monitoring subsystems.
 
 ## Documentation
 

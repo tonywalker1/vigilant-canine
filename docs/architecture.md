@@ -38,13 +38,13 @@ distributions.
 ├─────────────────────────────────────────────────────┤
 │  Engine Layer (privileged)                          │
 │  ┌──────────────┐ ┌────────────┐ ┌──────────────┐  │
-│  │ File integrity│ │ Log analysis│ │ auditd       │  │
-│  │ (fanotify)   │ │ (journal)  │ │ (planned)    │  │
+│  │ File integrity│ │ Log analysis│ │ Audit system │  │
+│  │ (fanotify)   │ │ (journal)  │ │ (libaudit)   │  │
 │  └──────────────┘ └────────────┘ └──────────────┘  │
 │  ┌────────────────────────────────────────────────┐ │
 │  │ vigilant-canined (core daemon)                 │ │
 │  │ EventBus, CorrelationEngine, PolicyEngine,     │ │
-│  │ AlertDispatcher, DbusNotifier                  │ │
+│  │ AlertDispatcher, DbusNotifier, AuditMonitor    │ │
 │  └────────────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────────┤
 │  Storage: SQLite (alerts, baselines, config state)  │
@@ -67,6 +67,7 @@ Written in C++. Managed by systemd.
 Key components:
 - **FanotifyMonitor** — Real-time file access event monitoring (Phase 1)
 - **JournalMonitor** — systemd journal rule-based log monitoring (Phase 2)
+- **AuditMonitor** — Linux audit subsystem monitoring with multi-record correlation (Phase 3)
 - **CorrelationEngine** — Time-windowed event aggregation and threshold detection (Phase 2)
 - **EventBus** — Synchronous pub/sub event distribution with mutex serialization
 - **PolicyEngine** — Rule evaluation and event filtering
@@ -164,9 +165,22 @@ on a host-level security tool. Unix socket provides the same functionality with 
 - Kernel errors and OOM events
 - Suspicious systemd operations
 
-### Phase 3 — auditd Integration (Planned)
-- Consume Linux audit events for deeper visibility (process execution, file access by user, etc.)
+### Phase 3 — auditd Integration ✅ Complete
+- Consume Linux audit events for deeper visibility (process execution, network connections, failed access, privilege changes)
+- Multi-record correlation (SYSCALL+EXECVE+CWD+PATH) with 100ms timeout windows
+- Command-line sanitization to prevent credential exposure in logs
+- 10 default audit rules for security monitoring
+- Graceful degradation when audit subsystem unavailable
 - Potential future integration with fapolicyd for policy enforcement (moving toward IPS)
+
+**Components:** AuditMonitor, AuditRule engine, AuditEventStore
+
+**Default rules:**
+- Unauthorized file access attempts
+- Process execution monitoring
+- Network connection tracking
+- Privilege escalation detection
+- User context attribution
 
 ## Alert Flow
 
