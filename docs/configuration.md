@@ -176,6 +176,87 @@ on_boot = true
   - Increases boot time slightly
   - Default: `true`
 
+### `[journal]` - Journal Monitoring (Phase 2)
+
+```toml
+[journal]
+enabled = true
+max_priority = 6
+exclude_units = []
+exclude_identifiers = ["vigilant-canined"]
+```
+
+- **enabled**: Enable systemd journal monitoring
+  - Monitors system logs for suspicious activity
+  - Default: `true`
+
+- **max_priority**: Maximum journal priority to process
+  - 0 = emerg, 1 = alert, 2 = crit, 3 = err, 4 = warning, 5 = notice, 6 = info, 7 = debug
+  - Lower numbers = higher priority (only urgent messages)
+  - Higher numbers = more messages (including informational)
+  - Default: `6` (info and above)
+
+- **exclude_units**: systemd units to exclude from monitoring
+  - Use for noisy services that generate many log entries
+  - Example: `["NetworkManager.service", "systemd-resolved.service"]`
+  - Default: `[]`
+
+- **exclude_identifiers**: syslog identifiers to exclude
+  - The daemon automatically excludes itself to prevent self-monitoring loops
+  - Default: `["vigilant-canined"]`
+
+**Built-in Rules:** The daemon includes 10 default rules covering:
+- SSH authentication failures
+- sudo authentication failures
+- su authentication failures
+- Login authentication failures
+- Generic privilege escalation
+- Service failures
+- Service crashes
+- Kernel errors
+- Out-of-memory (OOM) events
+- Suspicious systemd operations
+
+Custom rules can be added via `[[journal.rules]]` sections (see example config for syntax).
+
+### `[correlation]` - Event Correlation (Phase 2)
+
+```toml
+[correlation]
+enabled = true
+window_seconds = 300
+
+[[correlation.rules]]
+name = "repeated_auth_failure"
+event_match = "auth_failure"
+threshold = 5
+window_seconds = 60
+escalated_severity = "critical"
+```
+
+- **enabled**: Enable event correlation engine
+  - Aggregates events over time windows to detect attack patterns
+  - Default: `true`
+
+- **window_seconds**: Default correlation window
+  - How long to retain events for correlation
+  - Events older than this are purged
+  - Default: `300` (5 minutes)
+
+**Correlation Rules:**
+
+Each `[[correlation.rules]]` entry defines threshold-based alerting:
+
+- **name**: Unique identifier for this rule
+- **event_match**: Event category or rule name to match
+  - Examples: `"auth_failure"`, `"ssh_auth_failure"`, `"file_modified"`
+- **threshold**: Number of matching events to trigger escalation
+- **window_seconds**: Time window for counting events (specific to this rule)
+- **escalated_severity**: Severity when threshold is exceeded
+  - Options: `"info"`, `"warning"`, `"critical"`
+
+**Example:** Detect brute-force SSH attacks by escalating to critical when 5 auth failures occur within 60 seconds.
+
 ## Example Configurations
 
 ### Minimal Configuration (All Defaults)
@@ -190,6 +271,12 @@ log_level = "info"
 journal = true
 dbus = true
 socket = true
+
+[journal]
+enabled = true
+
+[correlation]
+enabled = true
 ```
 
 ### High-Security Workstation
@@ -215,6 +302,21 @@ exclude = ["~/.cache", "~/.local/share/Trash"]
 [scan]
 schedule = "daily"
 on_boot = true
+
+[journal]
+enabled = true
+max_priority = 6  # Monitor all info-level and above
+
+[correlation]
+enabled = true
+
+# Escalate repeated SSH failures quickly
+[[correlation.rules]]
+name = "ssh_brute_force"
+event_match = "ssh_auth_failure"
+threshold = 5
+window_seconds = 60
+escalated_severity = "critical"
 ```
 
 ### Server/Headless System
@@ -241,6 +343,22 @@ socket = true
 [scan]
 schedule = "daily"
 on_boot = true
+
+[journal]
+enabled = true
+max_priority = 4  # Only warnings and errors (less noise)
+exclude_units = ["cron.service"]  # Exclude noisy services
+
+[correlation]
+enabled = true
+
+# Detect service failure patterns
+[[correlation.rules]]
+name = "service_failures"
+event_match = "service_failure"
+threshold = 3
+window_seconds = 300
+escalated_severity = "critical"
 ```
 
 ## Validation

@@ -11,7 +11,7 @@ Implementation plan for the core `vigilant-canined` daemon with file integrity m
 | C++ standard                | C++23                               | std::expected, std::format; Hinder will also move to 23    |
 | Event system                | EventBus (pub/sub pattern)          | Simple, synchronous callbacks; Asio deferred to phase 2    |
 | Config format               | TOML (toml++)                       | Human-friendly, supports comments, not INI                 |
-| Runtime state storage       | SQLite                              | Baselines, alerts (schema_version/scans deferred)          |
+| Runtime state storage       | SQLite                              | All 4 tables: schema_version, baselines, alerts, scans     |
 | Hash algorithms             | BLAKE3 (default) + SHA-256          | BLAKE3 for speed, SHA-256 for compatibility/auditability   |
 | Testing                     | Google Test + Google Benchmark      | gtest for unit/integration, gbench for hot-path perf       |
 | Distro strategy             | Runtime detection, no plugins       | Config-driven, detect ostree/flatpak at startup            |
@@ -31,10 +31,11 @@ Implementation plan for the core `vigilant-canined` daemon with file integrity m
 | Google Test      | Unit and integration testing             | FetchContent       | 1     |
 | Google Benchmark | Performance benchmarks                   | FetchContent       | 1     |
 | systemd (libsystemd) | Journal logging, sd_notify          | System library     | 1     |
-| Boost.Asio       | Event loop, async I/O (future)           | System/vcpkg       | 2+    |
+| Boost.System     | (Unused - linked but no includes)        | System/vcpkg       | -     |
 
 **Note:** Phase 1 deliberately avoids Boost.Asio complexity. Simple EventBus + main loop is sufficient
-for file integrity monitoring. Asio may be added in phase 2 for log analysis with high event rates.
+for file integrity monitoring. Boost::system is linked but UNUSED (dead dependency). Asio may be added
+in phase 2 for log analysis with high event rates.
 
 ## Source Tree (As Implemented)
 
@@ -53,36 +54,38 @@ src/
     distro/
         detector.h / detector.cpp # ✅ Runtime distro detection, DistroInfo
     events/
-        event.h                   # ✅ Event types (std::variant-based, tagged union)
+        event.h / event.cpp       # ✅ Event types (std::variant-based) + type name mappings
         event_bus.h / event_bus.cpp # ✅ Pub/sub event bus with severity filtering
+    scanner/
+        scanner.h / scanner.cpp   # ✅ Full-tree scan + hash, baseline creation/verification
     monitor/
         fanotify_monitor.h / fanotify_monitor.cpp # ✅ fanotify real-time monitoring
-        scanner.h / scanner.cpp   # ✅ Full-tree scan + hash, baseline creation/verification
     storage/
         database.h / database.cpp # ✅ SQLite connection, RAII wrapper
+        schema.h                  # ✅ SQL DDL constants for all 4 tables
         baseline_store.h / baseline_store.cpp  # ✅ Baseline CRUD
         alert_store.h / alert_store.cpp        # ✅ Alert CRUD
     dispatch/
-        alert_dispatcher.h / alert_dispatcher.cpp  # ✅ Alert routing: SQLite + journal + D-Bus
+        alert_dispatcher.h / alert_dispatcher.cpp  # ✅ Alert routing: SQLite + journal + D-Bus stub
     policy/
         policy_engine.h / policy_engine.cpp # ✅ Policy evaluation with path rules
     package/
-        package_verifier.h / package_verifier.cpp # ✅ rpm/dpkg verification
+        package_verifier.h / package_verifier.cpp # ✅ rpm/dpkg verification (test-only, not linked to daemon)
 
 tests/
-    config/           config_test.cpp           # ✅ Config loading, validation
-    core/             hash_test.cpp             # ✅ Hash correctness (known vectors)
-    baseline/         strategy_test.cpp         # ✅ Baseline strategy tests
-    distro/           detector_test.cpp         # ✅ Distro detection
-    events/           event_bus_test.cpp        # ✅ Event bus pub/sub, severity filtering
-    monitor/          scanner_test.cpp          # ✅ Scan + hash, change detection
-                      fanotify_monitor_test.cpp # ✅ Fanotify monitor lifecycle
-    storage/          database_test.cpp         # ✅ Schema creation, CRUD
-                      baseline_store_test.cpp   # ✅ Baseline CRUD operations
-                      alert_store_test.cpp      # ✅ Alert storage and query
-    dispatch/         alert_dispatcher_test.cpp # ✅ Alert routing, event conversion
-    policy/           policy_engine_test.cpp    # ✅ Policy evaluation, pattern matching
-    package/          package_verifier_test.cpp # ✅ Package verification
+    config/           config_test.cpp           # ✅ 4 tests - Config loading, validation
+    core/             hash_test.cpp             # ✅ 8 tests - Hash correctness (known vectors)
+    baseline/         strategy_test.cpp         # ✅ 7 tests - Baseline strategy tests
+    distro/           detector_test.cpp         # ✅ 5 tests - Distro detection
+    events/           event_bus_test.cpp        # ✅ 7 tests - Event bus pub/sub, severity filtering
+    scanner/          scanner_test.cpp          # ✅ 7 tests - Scan + hash, change detection
+    monitor/          fanotify_monitor_test.cpp # ✅ 4 tests - Fanotify monitor lifecycle
+    storage/          database_test.cpp         # ✅ 6 tests - Schema creation, CRUD
+                      baseline_store_test.cpp   # ✅ (included in database_test.cpp)
+                      alert_store_test.cpp      # ✅ (included in database_test.cpp)
+    dispatch/         alert_dispatcher_test.cpp # ✅ 7 tests - Alert routing, event conversion
+    policy/           policy_engine_test.cpp    # ✅ 10 tests - Policy evaluation, pattern matching
+    package/          package_verifier_test.cpp # ✅ 11 tests - Package verification
 
 benchmarks/
     hash_bench.cpp                # ✅ BLAKE3 vs SHA-256 throughput
@@ -93,8 +96,10 @@ benchmarks/
 - `config/paths.h/cpp` - Advanced path management (future)
 - `monitor/watcher.h/cpp` - Coordinator (not needed with EventBus)
 - `dispatch/journal.h/cpp` - Integrated into alert_dispatcher
+- `distro/ostree.h/cpp` - OSTree helpers (partially in baseline/strategy.cpp)
 - `distro/flatpak.h/cpp` - Flatpak monitoring (future)
-- Full schema with `schema_version`, `scans` tables (future)
+- `distro/traditional.cpp` - Merged into baseline/strategy.cpp
+- Package verifier wired into daemon runtime - currently test-only utility
 
 ## Core Types
 
@@ -473,7 +478,7 @@ auto string_to_algorithm(std::string_view s) -> std::expected<HashAlgorithm, std
 ## Distro Detection
 
 ```cpp
-// distro/detect.h
+// distro/detector.h
 
 enum class DistroType : std::uint8_t {
     traditional,    // Fedora Workstation, Ubuntu, Debian, Arch, etc.
@@ -495,10 +500,13 @@ auto detect_distro() -> DistroInfo;
 auto default_system_paths(DistroType type) -> std::vector<FilePath>;
 ```
 
-## ostree Integration
+## ostree Integration (Aspirational)
+
+**Note:** Full OSTree API helpers were planned but not implemented in Phase 1.
+OSTree support is partially handled by `OstreeStrategy` in `baseline/strategy.h`.
 
 ```cpp
-// distro/ostree.h
+// distro/ostree.h — NOT IMPLEMENTED (future)
 
 struct OstreeDeployment {
     DeploymentId    id;
@@ -529,10 +537,12 @@ auto verify_object_store(FilePath const& repo_path)
     -> std::expected<std::vector<FileModifiedEvent>, std::string>;
 ```
 
-## Flatpak Integration
+## Flatpak Integration (Aspirational)
+
+**Note:** Flatpak monitoring was planned but not implemented in Phase 1. Deferred to future phases.
 
 ```cpp
-// distro/flatpak.h
+// distro/flatpak.h — NOT IMPLEMENTED (future)
 
 struct FlatpakInstallation {
     FilePath    path;           // /var/lib/flatpak or ~/.local/share/flatpak
@@ -647,54 +657,72 @@ extern "C" void signal_handler(int signum) {
 | SIGHUP  | Reload config (re-read TOML, re-apply policy)        |
 | SIGUSR1 | Trigger immediate full verification scan              |
 
-## fanotify Event Source
+## fanotify Event Source (As Implemented)
 
 ```cpp
-// monitor/fanotify.h
+// monitor/fanotify_monitor.h
 
-class FanotifySource {
+class FanotifyMonitor {
 public:
-    using EventCallback = std::function<void(Event)>;
-
     // Precondition: running as root or CAP_DAC_READ_SEARCH
-    static auto create(boost::asio::io_context& io,
-                       std::vector<FilePath> const& watch_paths,
-                       EventCallback callback)
-        -> std::expected<std::unique_ptr<FanotifySource>, std::string>;
+    FanotifyMonitor(EventBus& event_bus, BaselineStore& baseline_store,
+                    std::vector<std::filesystem::path> paths);
 
-    // Start async reading from fanotify fd
-    void start();
+    [[nodiscard]] auto initialize() -> std::expected<void, std::string>;
+    [[nodiscard]] auto start() -> std::expected<void, std::string>;
+    void stop();
+    [[nodiscard]] auto is_running() const -> bool;
 
-    // Stop watching (cancels async operations)
+private:
+    void monitor_loop();  // Background thread: poll() on fanotify fd
+    auto process_event(fanotify_event_metadata const& metadata) -> std::expected<void, std::string>;
+    auto get_path_from_fd(int fd) -> std::expected<std::filesystem::path, std::string>;
+
+    EventBus& m_event_bus;
+    BaselineStore& m_baseline_store;
+    std::vector<std::filesystem::path> m_paths;
+    int m_fanotify_fd{-1};
+    std::atomic<bool> m_running{false};
+    std::atomic<bool> m_should_stop{false};
+    std::thread m_monitor_thread;
+};
+```
+
+**Implementation notes:**
+- Simple background thread with `poll()` loop (no Asio complexity)
+- Publishes events to EventBus for processing by AlertDispatcher
+- Compares modified files against BaselineStore
+- Graceful degradation on systems without fanotify support
+
+## Alert Dispatch (As Implemented)
+
+```cpp
+// dispatch/alert_dispatcher.h
+
+class AlertDispatcher {
+public:
+    AlertDispatcher(EventBus& event_bus, AlertStore& alert_store, Config const& config);
+
+    [[nodiscard]] auto start() -> std::expected<void, std::string>;
     void stop();
 
 private:
-    boost::asio::posix::stream_descriptor m_fd;        // wraps fanotify fd
-    EventCallback                          m_callback; // called for each event
-    // async_read_some loop: read fanotify_event_metadata, resolve path, invoke callback
-    // Callback typically: asio::post(io, [event]{ process_event(event); })
+    void handle_event(Event const& event);  // EventBus subscriber
+    auto convert_to_alert(Event const& event) -> Alert;
+    void dispatch_to_journal(Alert const& alert);
+    void dispatch_to_dbus(Alert const& alert);  // Stub for Phase 2
+
+    EventBus& m_event_bus;
+    AlertStore& m_alert_store;
+    Config const& m_config;
+    EventSubscription m_subscription;
 };
 ```
 
-## Alert Dispatch
-
-```cpp
-// dispatch/dispatcher.h
-
-class Dispatcher {
-public:
-    explicit Dispatcher(Config const& config, Database& db);
-
-    // Dispatch an alert to all configured sinks.
-    // Pure decision logic: config determines which sinks are active.
-    void dispatch(Alert const& alert);
-
-private:
-    // Each sink is a function: Alert → void
-    // Composed at construction from config
-    std::vector<std::function<void(Alert const&)>> m_sinks;
-};
-```
+**Implementation notes:**
+- Subscribes to EventBus, converts events to alerts
+- Multi-channel dispatch: SQLite (AlertStore) + systemd journal + D-Bus (stub)
+- D-Bus notification delivery deferred to Phase 2
 
 ## Baseline Creation and Verification
 
@@ -739,48 +767,51 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Dependencies
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS system)  # UNUSED - dead dependency
 find_package(SQLite3 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SYSTEMD REQUIRED libsystemd)
-pkg_check_modules(OPENSSL REQUIRED libcrypto)
+pkg_check_modules(BLAKE3 REQUIRED libblake3)
 
-# Hinder — local build
-add_subdirectory(external/hinder)
+# Hinder — local build (conditionally)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/hinder)
+    add_subdirectory(external/hinder)
+endif()
 
-# toml++ — header-only
-# BLAKE3 — vendored C implementation
+# toml++ — FetchContent v3.4.0
+include(FetchContent)
+FetchContent_Declare(tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.4.0
+)
+FetchContent_MakeAvailable(tomlplusplus)
 
-# Main daemon
+# Main daemon (15 .cpp files)
 add_executable(vigilant-canined
     src/daemon/main.cpp
     src/daemon/daemon.cpp
     src/config/config.cpp
-    src/config/policy.cpp
-    src/config/paths.cpp
-    src/core/alert.cpp
     src/core/hash.cpp
-    src/distro/detect.cpp
-    src/distro/traditional.cpp
-    src/distro/ostree.cpp
-    src/distro/flatpak.cpp
-    src/monitor/fanotify.cpp
-    src/monitor/scanner.cpp
-    src/monitor/watcher.cpp
+    src/baseline/strategy.cpp
+    src/distro/detector.cpp
+    src/events/event.cpp
+    src/events/event_bus.cpp
+    src/scanner/scanner.cpp
+    src/monitor/fanotify_monitor.cpp
     src/storage/database.cpp
     src/storage/baseline_store.cpp
     src/storage/alert_store.cpp
-    src/dispatch/dispatcher.cpp
-    src/dispatch/journal.cpp
+    src/dispatch/alert_dispatcher.cpp
+    src/policy/policy_engine.cpp
+    # package_verifier.cpp NOT linked - test-only utility
 )
 
 target_link_libraries(vigilant-canined PRIVATE
     hinder::hinder
-    Boost::system
+    Boost::system          # UNUSED - remove when Boost dropped
     SQLite::SQLite3
     ${SYSTEMD_LIBRARIES}
-    ${OPENSSL_LIBRARIES}
-    blake3
+    ${BLAKE3_LIBRARIES}
 )
 
 target_include_directories(vigilant-canined PRIVATE
@@ -874,7 +905,7 @@ endif()
 - Simple main loop with signal handling (SIGTERM/SIGINT/SIGHUP)
 - Component orchestration (all pieces wired together)
 - `daemon/main.cpp` — CLI parsing, entry point
-- **Tests:** All 210 tests pass; daemon executable functional
+- **Tests:** All 76 tests pass; daemon executable functional
 
 ### ✅ Step 11: Package manager awareness
 - `package/package_verifier.h/cpp` — On-demand verification against rpm/dpkg
@@ -882,7 +913,7 @@ endif()
 - Returns verification status (ok/modified/not_packaged/error)
 - **Tests:** 6 package verifier tests with real package manager queries
 
-**Total test coverage:** 210 tests across all modules, 100% passing
+**Total test coverage:** 76 TEST/TEST_F macros across 11 test files, 100% passing
 
 ## Testing Strategy
 
@@ -959,7 +990,7 @@ flag gracefully. This ensures optimal SQLite performance without manual interven
 - ✅ Command-line interface with config file support
 
 **Testing and quality:**
-- ✅ 210 tests passing (unit + integration)
+- ✅ 76 TEST/TEST_F macros across 11 test files (unit + integration)
 - ✅ Google Test + Google Benchmark infrastructure
 - ✅ clang-format and clang-tidy configuration
 - ✅ std::expected error handling throughout

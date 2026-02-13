@@ -13,7 +13,7 @@
 namespace vigilant_canine::schema {
 
     // Current schema version
-    inline constexpr int CURRENT_VERSION = 1;
+    inline constexpr int CURRENT_VERSION = 2;  // Phase 2: added journal_events
 
     // Schema version table
     inline constexpr std::string_view DDL_SCHEMA_VERSION = R"(
@@ -89,6 +89,26 @@ CREATE TABLE IF NOT EXISTS scans (
     changes_found INTEGER DEFAULT 0,
     status      TEXT NOT NULL DEFAULT 'running'
 )
+)";
+
+    // Phase 2: Journal events table
+    inline constexpr std::string_view DDL_JOURNAL_EVENTS = R"(
+CREATE TABLE IF NOT EXISTS journal_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_name   TEXT NOT NULL,
+    message     TEXT NOT NULL,
+    priority    INTEGER NOT NULL,
+    unit_name   TEXT,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+)
+)";
+
+    inline constexpr std::string_view DDL_JOURNAL_EVENTS_IDX_RULE = R"(
+CREATE INDEX IF NOT EXISTS idx_journal_events_rule ON journal_events(rule_name)
+)";
+
+    inline constexpr std::string_view DDL_JOURNAL_EVENTS_IDX_CREATED = R"(
+CREATE INDEX IF NOT EXISTS idx_journal_events_created ON journal_events(created_at)
 )";
 
 }  // namespace vigilant_canine::schema

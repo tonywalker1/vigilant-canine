@@ -155,6 +155,116 @@ namespace vigilant_canine {
             return cfg;
         }
 
+        //
+        // Parse string array from TOML.
+        //
+        auto parse_string_array(toml::array const* arr) -> std::vector<std::string> {
+            std::vector<std::string> strings;
+            if (!arr) return strings;
+
+            for (auto const& elem : *arr) {
+                if (auto str = elem.value<std::string>()) {
+                    strings.emplace_back(*str);
+                }
+            }
+            return strings;
+        }
+
+        //
+        // Parse Phase 2: JournalConfig section.
+        //
+        auto parse_journal(toml::table const& root) -> JournalConfig {
+            JournalConfig cfg;
+
+            if (auto journal = root["journal"].as_table()) {
+                cfg.enabled = get_or(*journal, "enabled", cfg.enabled);
+
+                // max_priority as integer
+                if (auto priority = (*journal)["max_priority"].value<std::int64_t>()) {
+                    cfg.max_priority = static_cast<std::uint8_t>(*priority);
+                }
+
+                cfg.exclude_units = parse_string_array((*journal)["exclude_units"].as_array());
+                cfg.exclude_identifiers = parse_string_array((*journal)["exclude_identifiers"].as_array());
+
+                // Parse journal rules array
+                if (auto rules_arr = (*journal)["rules"].as_array()) {
+                    for (auto const& rule_elem : *rules_arr) {
+                        auto rule_table = rule_elem.as_table();
+                        if (!rule_table) continue;
+
+                        JournalRuleConfig rule;
+                        rule.name = get_or(*rule_table, "name", std::string{});
+                        rule.description = get_or(*rule_table, "description", std::string{});
+                        rule.action = get_or(*rule_table, "action", rule.action);
+                        rule.severity = get_or(*rule_table, "severity", rule.severity);
+                        rule.enabled = get_or(*rule_table, "enabled", rule.enabled);
+
+                        // Parse field matches
+                        if (auto matches_arr = (*rule_table)["match"].as_array()) {
+                            for (auto const& match_elem : *matches_arr) {
+                                auto match_table = match_elem.as_table();
+                                if (!match_table) continue;
+
+                                JournalFieldMatchConfig match;
+                                match.field = get_or(*match_table, "field", std::string{});
+                                match.pattern = get_or(*match_table, "pattern", std::string{});
+                                match.type = get_or(*match_table, "type", match.type);
+                                match.negate = get_or(*match_table, "negate", match.negate);
+
+                                rule.match.push_back(match);
+                            }
+                        }
+
+                        cfg.rules.push_back(rule);
+                    }
+                }
+            }
+
+            return cfg;
+        }
+
+        //
+        // Parse Phase 2: CorrelationConfig section.
+        //
+        auto parse_correlation(toml::table const& root) -> CorrelationConfig {
+            CorrelationConfig cfg;
+
+            if (auto correlation = root["correlation"].as_table()) {
+                cfg.enabled = get_or(*correlation, "enabled", cfg.enabled);
+
+                if (auto window = (*correlation)["window_seconds"].value<std::int64_t>()) {
+                    cfg.window_seconds = static_cast<std::uint32_t>(*window);
+                }
+
+                // Parse correlation rules array
+                if (auto rules_arr = (*correlation)["rules"].as_array()) {
+                    for (auto const& rule_elem : *rules_arr) {
+                        auto rule_table = rule_elem.as_table();
+                        if (!rule_table) continue;
+
+                        CorrelationRuleConfig rule;
+                        rule.name = get_or(*rule_table, "name", std::string{});
+                        rule.event_match = get_or(*rule_table, "event_match", std::string{});
+
+                        if (auto thresh = (*rule_table)["threshold"].value<std::int64_t>()) {
+                            rule.threshold = static_cast<std::uint32_t>(*thresh);
+                        }
+                        if (auto window = (*rule_table)["window_seconds"].value<std::int64_t>()) {
+                            rule.window_seconds = static_cast<std::uint32_t>(*window);
+                        }
+
+                        rule.escalated_severity = get_or(*rule_table, "escalated_severity",
+                                                          rule.escalated_severity);
+
+                        cfg.rules.push_back(rule);
+                    }
+                }
+            }
+
+            return cfg;
+        }
+
     }  // anonymous namespace
 
     auto load_config(std::filesystem::path const& path)
@@ -169,6 +279,8 @@ namespace vigilant_canine {
             cfg.monitor = parse_monitor(toml);
             cfg.alerts = parse_alerts(toml);
             cfg.scan = parse_scan(toml);
+            cfg.journal = parse_journal(toml);            // Phase 2
+            cfg.correlation = parse_correlation(toml);    // Phase 2
 
             return cfg;
         }

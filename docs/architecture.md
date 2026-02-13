@@ -39,11 +39,12 @@ distributions.
 │  Engine Layer (privileged)                          │
 │  ┌──────────────┐ ┌────────────┐ ┌──────────────┐  │
 │  │ File integrity│ │ Log analysis│ │ auditd       │  │
-│  │ (fanotify)   │ │ (journal)  │ │ (future)     │  │
+│  │ (fanotify)   │ │ (journal)  │ │ (planned)    │  │
 │  └──────────────┘ └────────────┘ └──────────────┘  │
 │  ┌────────────────────────────────────────────────┐ │
 │  │ vigilant-canined (core daemon)                 │ │
-│  │ Event bus, rule engine, alert dispatch          │ │
+│  │ EventBus, CorrelationEngine, PolicyEngine,     │ │
+│  │ AlertDispatcher, DbusNotifier                  │ │
 │  └────────────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────────┤
 │  Storage: SQLite (alerts, baselines, config state)  │
@@ -62,6 +63,15 @@ Responsibilities:
 - Alert generation and dispatch (journal, D-Bus notifications, internal socket to API daemon)
 
 Written in C++. Managed by systemd.
+
+Key components:
+- **FanotifyMonitor** — Real-time file access event monitoring (Phase 1)
+- **JournalMonitor** — systemd journal rule-based log monitoring (Phase 2)
+- **CorrelationEngine** — Time-windowed event aggregation and threshold detection (Phase 2)
+- **EventBus** — Synchronous pub/sub event distribution with mutex serialization
+- **PolicyEngine** — Rule evaluation and event filtering
+- **AlertDispatcher** — Multi-channel alert routing (SQLite, journal, D-Bus)
+- **DbusNotifier** — Desktop notification delivery via freedesktop specification (Phase 2)
 
 ### vigilant-canined-api (API daemon)
 
@@ -87,8 +97,14 @@ files.
 
 ### Desktop notifications (optional)
 
-A lightweight D-Bus client that listens for alert signals and delivers desktop notifications via the standard
-freedesktop notification interface. Works with any desktop environment (KDE, GNOME, etc.).
+Desktop notifications are delivered via **DbusNotifier**, a component within the core daemon that sends freedesktop
+notifications over the session D-Bus. The daemon gracefully degrades on headless systems (notifications are skipped if
+no session bus is available). Works with any desktop environment (KDE, GNOME, etc.).
+
+Notifications include alert severity mapping to urgency levels:
+- INFO → low urgency
+- WARNING → normal urgency
+- CRITICAL → critical urgency
 
 ## Technology Decisions
 
@@ -122,18 +138,33 @@ separate Qt and GTK frontends.
 **TCP socket for the API:** Rejected for the default configuration because it adds unnecessary network attack surface
 on a host-level security tool. Unix socket provides the same functionality with better security properties.
 
-## Detection Capabilities (Planned)
+## Detection Capabilities
 
-### Phase 1 — File Integrity Monitoring
+### Phase 1 — File Integrity Monitoring ✅ Complete
 - Baseline filesystem state (hashes, permissions, ownership) for critical paths
 - Real-time change detection via fanotify
 - Alerts on unauthorized modifications to system binaries, configuration files, etc.
+- Package manager integration (rpm/dpkg) for verification
 
-### Phase 2 — Log Analysis
-- Monitor systemd journal for suspicious patterns (failed auth, privilege escalation, etc.)
-- Configurable rules with sane defaults
+**Components:** FanotifyMonitor, BaselineStore, Scanner, PackageVerifier
 
-### Phase 3 — auditd Integration
+### Phase 2 — Log Analysis ✅ Complete
+- Monitor systemd journal for suspicious patterns (failed auth, privilege escalation, service failures)
+- Rule-based pattern matching (regex, exact, contains, starts_with)
+- Time-windowed event correlation with threshold detection and debouncing
+- Desktop notifications via D-Bus (freedesktop specification)
+- Configurable rules with 10 sane defaults
+
+**Components:** JournalMonitor, CorrelationEngine, DbusNotifier
+
+**Default rules:**
+- Authentication failures (ssh, sudo, su, login)
+- Privilege escalation attempts
+- Service failures and crashes
+- Kernel errors and OOM events
+- Suspicious systemd operations
+
+### Phase 3 — auditd Integration (Planned)
 - Consume Linux audit events for deeper visibility (process execution, file access by user, etc.)
 - Potential future integration with fapolicyd for policy enforcement (moving toward IPS)
 

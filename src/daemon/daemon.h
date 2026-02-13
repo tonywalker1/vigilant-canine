@@ -10,10 +10,13 @@
 
 #include <baseline/strategy.h>
 #include <config/config.h>
+#include <correlation/correlation_engine.h>
 #include <dispatch/alert_dispatcher.h>
 #include <distro/detector.h>
 #include <events/event_bus.h>
+#include <journal/journal_monitor.h>
 #include <monitor/fanotify_monitor.h>
+#include <notify/dbus_notifier.h>
 #include <policy/policy_engine.h>
 #include <scanner/scanner.h>
 #include <storage/alert_store.h>
@@ -124,6 +127,11 @@ namespace vigilant_canine {
         std::unique_ptr<Scanner> m_scanner;
         std::unique_ptr<FanotifyMonitor> m_fanotify_monitor;
         std::unique_ptr<AlertDispatcher> m_alert_dispatcher;
+
+        // Phase 2 components
+        std::unique_ptr<DbusNotifier> m_dbus_notifier;
+        std::unique_ptr<JournalMonitor> m_journal_monitor;
+        std::unique_ptr<CorrelationEngine> m_correlation_engine;
 
         // Lifecycle control
         std::atomic<bool> m_running{false};

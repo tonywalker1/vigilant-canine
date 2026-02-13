@@ -99,3 +99,37 @@ schedule = "daily"
 
 # Perform full baseline scan on boot
 on_boot = true
+
+[journal]
+# Enable systemd journal monitoring
+enabled = true
+
+# Maximum journal priority to process (0=emerg, 7=debug, default=6=info)
+max_priority = 6
+
+# Units to exclude from monitoring (e.g., noisy services)
+exclude_units = []
+
+# Identifiers to exclude from monitoring
+exclude_identifiers = ["vigilant-canined"]
+
+# Custom journal rules (beyond the built-in defaults)
+# Built-in rules cover: auth failures, privilege escalation, service failures,
+# kernel errors, OOM events
+# rules = []
+
+[correlation]
+# Enable event correlation
+enabled = true
+
+# Default correlation window in seconds
+window_seconds = 300
+
+# Correlation rules for threshold-based alerting
+# Example: escalate repeated auth failures
+# [[correlation.rules]]
+# name = "repeated_auth_failure"
+# event_match = "auth_failure"
+# threshold = 5
+# window_seconds = 60
+# escalated_severity = "critical"

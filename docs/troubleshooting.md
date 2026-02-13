@@ -114,7 +114,7 @@ sudo chmod 750 /var/lib/vigilant-canine
 
 **Symptom:**
 
-Daemon runs but no notifications show up when files change.
+Daemon runs but no notifications show up when files change or log events occur.
 
 **Diagnosis:**
 
@@ -142,6 +142,71 @@ echo "# test" | sudo tee -a /etc/hosts
    ```bash
    ps aux | grep notification
    ```
+4. On headless systems, D-Bus notifications are silently skipped (check journal logs instead)
+
+### Journal monitoring not detecting events
+
+**Symptom:**
+
+Log-based alerts (auth failures, service crashes) not being generated.
+
+**Diagnosis:**
+
+Check if journal monitoring is enabled:
+
+```bash
+grep -A3 "\[journal\]" /etc/vigilant-canine/config.toml
+# Should show: enabled = true
+```
+
+Verify the daemon has access to the journal:
+
+```bash
+# Check if vigilant-canined can read journal
+sudo journalctl --user-unit=vigilant-canined
+```
+
+Test that journal events are being processed:
+
+```bash
+# Generate a test auth failure
+ssh nonexistent@localhost
+# Check daemon logs for detection
+sudo journalctl -u vigilant-canined -n 20
+```
+
+**Solutions:**
+
+1. Ensure `journal.enabled = true` in config
+2. Check `journal.max_priority` - lower numbers = less coverage (default 6 = info)
+3. Verify the service isn't excluded in `journal.exclude_units`
+4. Check daemon has `CAP_AUDIT_READ` capability or runs as root
+
+### Excessive journal alerts
+
+**Symptom:**
+
+Too many log-based alerts from noisy services.
+
+**Solution:**
+
+Exclude noisy units from journal monitoring:
+
+```toml
+[journal]
+exclude_units = [
+    "NetworkManager.service",
+    "systemd-resolved.service",
+    "cron.service",
+]
+```
+
+Or increase `max_priority` to only catch critical messages:
+
+```toml
+[journal]
+max_priority = 4  # Only warnings and errors (3=err, 4=warning)
+```
 
 ### "Package manager not detected"
 

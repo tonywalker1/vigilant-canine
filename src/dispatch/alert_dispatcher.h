@@ -18,6 +18,9 @@
 
 namespace vigilant_canine {
 
+    // Forward declaration
+    class DbusNotifier;
+
     //
     // Alert dispatcher configuration.
     //
@@ -40,7 +43,8 @@ namespace vigilant_canine {
     public:
         AlertDispatcher(EventBus& event_bus,
                         AlertStore& alert_store,
-                        AlertDispatcherConfig config = {});
+                        AlertDispatcherConfig config = {},
+                        DbusNotifier* dbus_notifier = nullptr);  // Phase 2
 
         ~AlertDispatcher();
 
@@ -91,6 +95,7 @@ namespace vigilant_canine {
         EventBus& m_event_bus;
         AlertStore& m_alert_store;
         AlertDispatcherConfig m_config;
+        DbusNotifier* m_dbus_notifier{nullptr};  // Phase 2: optional notifier
         bool m_running{false};
         std::unique_ptr<EventSubscription> m_subscription;
     };
