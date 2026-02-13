@@ -1,0 +1,5 @@
+if(EXISTS "/home/tony/Development/personal/vigilant-canine/tests/events/event_bus_test[1]_tests.cmake")
+  include("/home/tony/Development/personal/vigilant-canine/tests/events/event_bus_test[1]_tests.cmake")
+else()
+  add_test(event_bus_test_NOT_BUILT event_bus_test_NOT_BUILT)
+endif()
