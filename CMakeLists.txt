@@ -22,6 +22,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SYSTEMD REQUIRED libsystemd)
 pkg_check_modules(OPENSSL REQUIRED libcrypto)
 pkg_check_modules(BLAKE3 REQUIRED libblake3)
+pkg_check_modules(AUDIT REQUIRED audit auparse)
 
 # toml++ - header-only TOML parser
 include(FetchContent)
@@ -70,6 +71,11 @@ add_executable(vigilant-canined
     src/journal/journal_monitor.cpp
     src/correlation/correlation_engine.cpp
     src/notify/dbus_notifier.cpp
+    # Phase 3 components
+    src/audit/audit_rule.cpp
+    src/audit/audit_parsing.cpp
+    src/audit/audit_monitor.cpp
+    src/storage/audit_event_store.cpp
 )
 
 target_link_libraries(vigilant-canined PRIVATE
@@ -77,6 +83,7 @@ target_link_libraries(vigilant-canined PRIVATE
     ${SYSTEMD_LIBRARIES}
     ${OPENSSL_LIBRARIES}
     ${BLAKE3_LIBRARIES}
+    ${AUDIT_LIBRARIES}
     tomlplusplus::tomlplusplus
 )
 
@@ -89,6 +96,7 @@ target_include_directories(vigilant-canined PRIVATE
     ${SYSTEMD_INCLUDE_DIRS}
     ${OPENSSL_INCLUDE_DIRS}
     ${BLAKE3_INCLUDE_DIRS}
+    ${AUDIT_INCLUDE_DIRS}
 )
 
 target_compile_options(vigilant-canined PRIVATE

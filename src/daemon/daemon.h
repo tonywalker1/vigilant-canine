@@ -8,6 +8,7 @@
 #ifndef VIGILANT_CANINE_DAEMON_DAEMON_H
 #define VIGILANT_CANINE_DAEMON_DAEMON_H
 
+#include <audit/audit_monitor.h>
 #include <baseline/strategy.h>
 #include <config/config.h>
 #include <correlation/correlation_engine.h>
@@ -20,6 +21,7 @@
 #include <policy/policy_engine.h>
 #include <scanner/scanner.h>
 #include <storage/alert_store.h>
+#include <storage/audit_event_store.h>
 #include <storage/baseline_store.h>
 #include <storage/database.h>
 
@@ -132,6 +134,10 @@ namespace vigilant_canine {
         std::unique_ptr<DbusNotifier> m_dbus_notifier;
         std::unique_ptr<JournalMonitor> m_journal_monitor;
         std::unique_ptr<CorrelationEngine> m_correlation_engine;
+
+        // Phase 3 components
+        std::unique_ptr<AuditMonitor> m_audit_monitor;
+        std::unique_ptr<AuditEventStore> m_audit_event_store;
 
         // Lifecycle control
         std::atomic<bool> m_running{false};

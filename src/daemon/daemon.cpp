@@ -92,6 +92,7 @@ namespace vigilant_canine {
         // Create stores
         m_baseline_store = std::make_unique<BaselineStore>(*m_database);
         m_alert_store = std::make_unique<AlertStore>(*m_database);
+        m_audit_event_store = std::make_unique<AuditEventStore>(*m_database);  // Phase 3
 
         // Create event bus
         m_event_bus = std::make_unique<EventBus>();
@@ -123,6 +124,32 @@ namespace vigilant_canine {
         m_alert_dispatcher = std::make_unique<AlertDispatcher>(*m_event_bus,
                                                                  *m_alert_store,
                                                                  dispatch_config);
+
+        // Phase 3: Audit monitor
+        if (m_config.audit.enabled) {
+            auto audit_rules = get_default_audit_rules();
+            // TODO: Merge with m_config.audit.rules
+
+            AuditMonitorConfig audit_config;
+            audit_config.sanitize_command_lines = m_config.audit.sanitize_command_lines;
+            audit_config.exclude_comms = m_config.audit.exclude_comms;
+            audit_config.exclude_uids = m_config.audit.exclude_uids;
+
+            m_audit_monitor = std::make_unique<AuditMonitor>(
+                *m_event_bus,
+                std::move(audit_rules),
+                audit_config
+            );
+
+            auto audit_init_result = m_audit_monitor->initialize();
+            if (!audit_init_result) {
+                // Audit may not be available - log warning but continue
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Audit subsystem unavailable: %s",
+                    audit_init_result.error().c_str());
+                m_audit_monitor.reset();  // Don't keep unusable monitor
+            }
+        }
 
         sd_journal_print(LOG_INFO, "vigilant-canined: Initialization complete");
         return {};
@@ -159,6 +186,18 @@ namespace vigilant_canine {
                     fanotify_start_result.error().c_str());
             } else {
                 sd_journal_print(LOG_INFO, "vigilant-canined: Fanotify monitor started");
+            }
+        }
+
+        // Phase 3: Start audit monitor
+        if (m_audit_monitor) {
+            auto audit_start_result = m_audit_monitor->start();
+            if (!audit_start_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Audit monitor start failed: %s",
+                    audit_start_result.error().c_str());
+            } else {
+                sd_journal_print(LOG_INFO, "vigilant-canined: Audit monitor started");
             }
         }
 
@@ -204,6 +243,9 @@ namespace vigilant_canine {
         // Stop components
         m_fanotify_monitor->stop();
         m_alert_dispatcher->stop();
+        if (m_audit_monitor) {
+            m_audit_monitor->stop();
+        }
 
         m_running.store(false);
         sd_journal_print(LOG_INFO, "vigilant-canined: Daemon stopped");
@@ -230,6 +272,13 @@ namespace vigilant_canine {
         AlertDispatcherConfig dispatch_config;
         dispatch_config.log_to_journal = m_config.alerts.journal;
         dispatch_config.send_dbus = m_config.alerts.dbus;
+
+        // Phase 3: Hot reload audit rules
+        if (m_audit_monitor && m_config.audit.enabled) {
+            auto audit_rules = get_default_audit_rules();
+            // TODO: Merge with m_config.audit.rules
+            m_audit_monitor->update_rules(std::move(audit_rules));
+        }
 
         // Note: We can't easily update all components without restarting
         // For now, just update what we can
