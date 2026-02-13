@@ -398,3 +398,83 @@ Intended behavior - any modification to monitored files triggers an alert.
 **Action:**
 
 This is expected. The alerts inform you of your own changes, providing an audit trail.
+
+## systemd Integration
+
+### Service Management
+
+**Check service status:**
+```bash
+sudo systemctl status vigilant-canined.service
+```
+
+**View logs:**
+```bash
+# Follow logs in real-time
+sudo journalctl -u vigilant-canined -f
+
+# View recent logs with errors
+sudo journalctl -u vigilant-canined -xe
+
+# View logs since boot
+sudo journalctl -u vigilant-canined -b
+```
+
+**Reload configuration without restart:**
+```bash
+sudo systemctl kill -s HUP vigilant-canined.service
+```
+
+Check journal to verify reload succeeded.
+
+### Common Issues
+
+**Service fails to start:**
+
+Check journal for specific error:
+```bash
+sudo journalctl -u vigilant-canined -xe
+```
+
+Common causes:
+- **Missing capabilities**: Service needs `CAP_DAC_READ_SEARCH` and `CAP_AUDIT_READ`
+- **Invalid config**: Check `/etc/vigilant-canine/config.toml` syntax (TOML format)
+- **Database permissions**: `/var/lib/vigilant-canine/` must be writable by root
+- **Missing directories**: Run `sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/vigilant-canine.conf`
+
+**Audit subsystem monitoring disabled:**
+
+If logs show "Audit monitoring unavailable":
+```bash
+# Check auditd status
+sudo systemctl status auditd
+
+# Enable and start
+sudo systemctl enable --now auditd
+
+# Restart vigilant-canined
+sudo systemctl restart vigilant-canined.service
+```
+
+The daemon gracefully degrades if audit is unavailable (file and log monitoring continue).
+
+**Verify security hardening:**
+
+```bash
+systemd-analyze security vigilant-canined.service
+```
+
+Should show high security score with CAP_DAC_READ_SEARCH and CAP_AUDIT_READ as only ambient capabilities.
+
+**Service restarts repeatedly:**
+
+```bash
+# Check for crash loop
+sudo journalctl -u vigilant-canined -n 50
+
+# Disable auto-restart temporarily for debugging
+sudo systemctl set-property vigilant-canined.service Restart=no
+sudo systemctl restart vigilant-canined.service
+```
+
+Check for configuration errors or resource exhaustion.

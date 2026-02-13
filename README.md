@@ -123,7 +123,43 @@ sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.tom
 # Or run in foreground with debug logging
 sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.toml --log-level debug
 
-# systemd integration coming soon
+## systemd Installation
+
+After building:
+
+```bash
+# Install to /usr (requires root)
+sudo cmake --install build/gcc-release --prefix /usr
+
+# Create runtime directories
+sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/vigilant-canine.conf
+
+# Configure the daemon
+sudo cp /etc/vigilant-canine/config.toml.example /etc/vigilant-canine/config.toml
+sudo $EDITOR /etc/vigilant-canine/config.toml
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable --now vigilant-canined.service
+
+# Verify
+sudo systemctl status vigilant-canined.service
+sudo journalctl -u vigilant-canined -f
+```
+
+See [systemd/README.md](systemd/README.md) for complete installation, management, and troubleshooting instructions.
+
+## Manual Execution (Development/Testing)
+
+For development or testing without systemd:
+
+```bash
+# Run directly (for testing)
+sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.toml
+
+# Or run in foreground with debug logging (if --log-level flag exists)
+sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.toml
+```
 ```
 
 **Note:** The core monitoring daemon is feature-complete with file integrity monitoring, log analysis, and audit subsystem integration. The API daemon and web dashboard are optional components planned for future releases.

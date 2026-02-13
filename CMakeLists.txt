@@ -134,16 +134,45 @@ if(VC_BUILD_BENCHMARKS)
 endif()
 
 # Installation
+include(GNUInstallDirs)
+
+# Binary
 install(TARGETS vigilant-canined
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# systemd service files (TODO: add when daemon is complete)
-# install(FILES systemd/vigilant-canined.service
-#     DESTINATION lib/systemd/system
-# )
+# Configuration example
+install(FILES config/vigilant-canine.toml.example
+    DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/vigilant-canine
+    RENAME config.toml.example
+)
 
-# tmpfiles.d configuration
-# install(FILES systemd/vigilant-canine.conf
-#     DESTINATION lib/tmpfiles.d
-# )
+# systemd service files
+# Use pkg-config to detect systemd paths (works on Fedora/Debian/Ubuntu)
+pkg_get_variable(SYSTEMD_SYSTEM_UNIT_DIR systemd systemdsystemunitdir)
+pkg_get_variable(TMPFILES_DIR systemd tmpfilesdir)
+
+# Fallback for packaging (DESTDIR set by rpmbuild/dpkg-buildpackage)
+if(NOT SYSTEMD_SYSTEM_UNIT_DIR)
+    set(SYSTEMD_SYSTEM_UNIT_DIR /usr/lib/systemd/system)
+endif()
+if(NOT TMPFILES_DIR)
+    set(TMPFILES_DIR /usr/lib/tmpfiles.d)
+endif()
+
+install(FILES systemd/vigilant-canined.service
+    DESTINATION ${SYSTEMD_SYSTEM_UNIT_DIR}
+)
+
+install(FILES systemd/vigilant-canine.conf
+    DESTINATION ${TMPFILES_DIR}
+)
+
+# Documentation
+install(FILES
+    README.md
+    docs/architecture.md
+    docs/configuration.md
+    docs/troubleshooting.md
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}
+)
