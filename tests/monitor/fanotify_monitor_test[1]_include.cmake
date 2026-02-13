@@ -1,5 +1,0 @@
-if(EXISTS "/home/tony/Development/personal/vigilant-canine/tests/monitor/fanotify_monitor_test[1]_tests.cmake")
-  include("/home/tony/Development/personal/vigilant-canine/tests/monitor/fanotify_monitor_test[1]_tests.cmake")
-else()
-  add_test(fanotify_monitor_test_NOT_BUILT fanotify_monitor_test_NOT_BUILT)
-endif()

@@ -6,3 +6,7 @@
 /containers/
 /external/
 /trash/
+
+# GoogleTest generated files
+*[1]_include.cmake
+*[1]_tests.cmake

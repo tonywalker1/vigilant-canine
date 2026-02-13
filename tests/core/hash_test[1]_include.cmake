@@ -1,5 +1,0 @@
-if(EXISTS "/home/tony/Development/personal/vigilant-canine/tests/core/hash_test[1]_tests.cmake")
-  include("/home/tony/Development/personal/vigilant-canine/tests/core/hash_test[1]_tests.cmake")
-else()
-  add_test(hash_test_NOT_BUILT hash_test_NOT_BUILT)
-endif()
