@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+#DEBHELPER#
+
+# Create runtime directories
+if [ "$1" = "configure" ]; then
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/vigilant-canine.conf || true
+fi
+
+exit 0

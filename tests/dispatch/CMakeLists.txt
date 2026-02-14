@@ -6,6 +6,7 @@ add_executable(alert_dispatcher_test
     ../../src/events/event.cpp
     ../../src/events/event_bus.cpp
     ../../src/storage/alert_store.cpp
+    ../../src/storage/baseline_store.cpp
     ../../src/storage/database.cpp
     ../../src/core/hash.cpp
     ../../src/distro/detector.cpp

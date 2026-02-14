@@ -1,0 +1,56 @@
+#
+# Vigilant Canine User Configuration Example
+#
+# This is a sample user configuration file showing how individual users can opt-in
+# to home directory monitoring. Copy this file to:
+#   ~/.config/vigilant-canine/config.toml
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Tony Walker
+#
+
+[monitor.home]
+# Opt-in to home directory monitoring
+# Set to true to enable monitoring of your home directory paths
+enabled = true
+
+# Paths to monitor (relative to $HOME)
+# These paths will be monitored for unauthorized changes
+paths = [
+    ".local/bin",                  # User-installed binaries
+    ".cargo/bin",                  # Rust toolchain binaries
+    ".local/share/flatpak",        # User Flatpak applications
+    "bin",                         # Custom scripts directory
+    "scripts",                     # Another custom scripts directory
+    ".ssh",                        # SSH keys and config
+    ".gnupg",                      # GPG keys and config
+]
+
+# Paths to exclude from monitoring (relative to $HOME)
+# Use this to protect your privacy by excluding sensitive or frequently-changing directories
+exclude = [
+    ".cache",                      # Cache directory
+    ".local/share/Trash",          # Trash directory
+    "Downloads",                   # Downloads directory
+    ".mozilla/firefox/*/cache2",   # Firefox cache (glob pattern)
+    ".config/chromium/*/Cache",    # Chromium cache
+    ".local/share/recently-used.xbel",  # Recent files tracking
+]
+
+# Hash algorithm (optional)
+# Uncomment to override the system default
+# hash_algorithm = "blake3"
+
+[alerts]
+# Alert delivery preferences for this user
+# These settings control where alerts are sent when files in your home directory change
+
+# Log to systemd journal (requires systemd)
+journal = true
+
+# Send desktop notifications via D-Bus
+# Set to false if you don't want popup notifications
+dbus = true
+
+# Make alerts available via API socket
+socket = true

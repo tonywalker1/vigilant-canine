@@ -1,0 +1,76 @@
+#
+# Vigilant Canine Policy Configuration Example
+#
+# This file defines system-wide policies for home directory monitoring.
+# It should be placed in /etc/vigilant-canine/config.toml (as [policy.home] section)
+# or as a separate policy file.
+#
+# Policy settings OVERRIDE user preferences - use with care.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Tony Walker
+#
+
+[policy.home]
+# Force monitoring for specific users (by username)
+# These users MUST have their home directories monitored
+# They can opt out ONLY if allow_user_opt_out = true
+monitor_users = [
+    # "admin",
+    # "root",
+]
+
+# Force monitoring for users in these groups
+# Any user whose primary or supplementary group matches will be monitored
+monitor_groups = [
+    # "sudo",
+    # "wheel",
+    # "administrators",
+]
+
+# Allow users to opt out of monitoring
+# If true: users listed in monitor_users/monitor_groups can disable monitoring via their user config
+# If false: monitoring is mandatory for listed users/groups
+allow_user_opt_out = true
+
+# Mandatory paths that must be monitored for all monitored users
+# Users can add MORE paths via their config, but cannot remove these
+# Paths are relative to each user's $HOME
+mandatory_paths = [
+    # ".ssh",
+    # ".gnupg",
+]
+
+#
+# Example 1: Force monitoring for administrators, allow opt-out
+#
+# [policy.home]
+# monitor_groups = ["sudo", "wheel"]
+# allow_user_opt_out = true
+# mandatory_paths = [".ssh", ".gnupg"]
+#
+# Result: Users in sudo/wheel groups must have .ssh and .gnupg monitored,
+#         but can disable monitoring entirely via user config if desired.
+
+#
+# Example 2: Mandatory monitoring for specific users
+#
+# [policy.home]
+# monitor_users = ["admin", "developer"]
+# allow_user_opt_out = false
+# mandatory_paths = [".ssh", ".gnupg", ".local/bin"]
+#
+# Result: admin and developer users CANNOT disable monitoring,
+#         and their .ssh, .gnupg, and .local/bin are always monitored.
+
+#
+# Example 3: Optional monitoring with required paths
+#
+# [policy.home]
+# monitor_users = []
+# monitor_groups = []
+# allow_user_opt_out = true
+# mandatory_paths = [".ssh"]
+#
+# Result: No forced monitoring, but users who opt-in MUST include .ssh
+#         in their monitored paths.

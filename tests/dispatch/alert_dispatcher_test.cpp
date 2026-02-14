@@ -9,6 +9,7 @@
 
 #include <events/event_bus.h>
 #include <storage/alert_store.h>
+#include <storage/baseline_store.h>
 #include <storage/database.h>
 
 #include <gtest/gtest.h>
@@ -31,11 +32,13 @@ namespace vigilant_canine {
             m_db = std::make_unique<Database>(std::move(*db_result));
 
             m_alert_store = std::make_unique<AlertStore>(*m_db);
+            m_baseline_store = std::make_unique<BaselineStore>(*m_db);
             m_event_bus = std::make_unique<EventBus>();
         }
 
         void TearDown() override {
             m_alert_store.reset();
+            m_baseline_store.reset();
             m_event_bus.reset();
             m_db.reset();
 
@@ -47,16 +50,17 @@ namespace vigilant_canine {
         std::filesystem::path m_db_path;
         std::unique_ptr<Database> m_db;
         std::unique_ptr<AlertStore> m_alert_store;
+        std::unique_ptr<BaselineStore> m_baseline_store;
         std::unique_ptr<EventBus> m_event_bus;
     };
 
     TEST_F(AlertDispatcherTest, ConstructAndDestroy) {
-        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store};
+        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, *m_baseline_store};
         EXPECT_FALSE(dispatcher.is_running());
     }
 
     TEST_F(AlertDispatcherTest, StartAndStop) {
-        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store};
+        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, *m_baseline_store};
 
         auto result = dispatcher.start();
         ASSERT_TRUE(result.has_value());
@@ -67,7 +71,7 @@ namespace vigilant_canine {
     }
 
     TEST_F(AlertDispatcherTest, CannotStartTwice) {
-        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store};
+        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, *m_baseline_store};
 
         auto result1 = dispatcher.start();
         ASSERT_TRUE(result1.has_value());
@@ -82,7 +86,7 @@ namespace vigilant_canine {
         AlertDispatcherConfig config;
         config.log_to_journal = false;
 
-        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, config};
+        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, *m_baseline_store, config};
         auto start_result = dispatcher.start();
         ASSERT_TRUE(start_result.has_value());
 
@@ -123,7 +127,7 @@ namespace vigilant_canine {
         AlertDispatcherConfig config;
         config.log_to_journal = false;
 
-        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, config};
+        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, *m_baseline_store, config};
         dispatcher.start();
 
         FilePath path{std::filesystem::path{"/tmp/newfile.txt"}};
@@ -154,7 +158,7 @@ namespace vigilant_canine {
         AlertDispatcherConfig config;
         config.log_to_journal = false;
 
-        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, config};
+        AlertDispatcher dispatcher{*m_event_bus, *m_alert_store, *m_baseline_store, config};
         dispatcher.start();
 
         ScanCompletedEvent event_data{
@@ -183,7 +187,7 @@ namespace vigilant_canine {
     }
 
     TEST_F(AlertDispatcherTest, MoveConstruction) {
-        AlertDispatcher dispatcher1{*m_event_bus, *m_alert_store};
+        AlertDispatcher dispatcher1{*m_event_bus, *m_alert_store, *m_baseline_store};
         dispatcher1.start();
 
         AlertDispatcher dispatcher2{std::move(dispatcher1)};

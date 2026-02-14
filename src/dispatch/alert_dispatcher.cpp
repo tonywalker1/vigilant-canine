@@ -19,10 +19,12 @@ namespace vigilant_canine {
 
     AlertDispatcher::AlertDispatcher(EventBus& event_bus,
                                       AlertStore& alert_store,
+                                      BaselineStore& baseline_store,
                                       AlertDispatcherConfig config,
                                       DbusNotifier* dbus_notifier)
         : m_event_bus(event_bus),
           m_alert_store(alert_store),
+          m_baseline_store(baseline_store),
           m_config(config),
           m_dbus_notifier(dbus_notifier) {}
 
@@ -33,6 +35,7 @@ namespace vigilant_canine {
     AlertDispatcher::AlertDispatcher(AlertDispatcher&& other) noexcept
         : m_event_bus(other.m_event_bus),
           m_alert_store(other.m_alert_store),
+          m_baseline_store(other.m_baseline_store),
           m_config(other.m_config),
           m_dbus_notifier(other.m_dbus_notifier),
           m_running(other.m_running),
@@ -122,29 +125,64 @@ namespace vigilant_canine {
         alert.source = event.source;
 
         // Extract event-specific details
-        std::visit([&alert](auto const& event_data) {
+        std::visit([&alert, this](auto const& event_data) {
             using T = std::decay_t<decltype(event_data)>;
 
             if constexpr (std::is_same_v<T, FileModifiedEvent>) {
                 alert.category = "file_modified";
                 alert.path = event_data.path;
-                alert.summary = std::format("File modified: {}",
-                                             (*event_data.path).string());
+
+                // Check if this is a user file by querying the baseline
+                auto baseline_result = m_baseline_store.find_by_path(event_data.path, std::nullopt);
+                std::string username;
+                if (baseline_result && baseline_result->has_value()) {
+                    auto const& baseline = baseline_result->value();
+                    if (baseline.source.starts_with("user:")) {
+                        username = baseline.source.substr(5);  // Extract username
+                        alert.summary = std::format("User {} file modified: {}",
+                                                     username,
+                                                     (*event_data.path).string());
+                    } else {
+                        alert.summary = std::format("File modified: {}",
+                                                     (*event_data.path).string());
+                    }
+                } else {
+                    alert.summary = std::format("File modified: {}",
+                                                 (*event_data.path).string());
+                }
+
                 alert.details = std::format("Old hash: {}\nNew hash: {}\n{}",
                                              *event_data.old_hash,
                                              *event_data.new_hash,
                                              event_data.change_description);
+                if (!username.empty()) {
+                    alert.details = std::format("{}\nUsername: {}", alert.details.value_or(""), username);
+                }
             } else if constexpr (std::is_same_v<T, FileCreatedEvent>) {
                 alert.category = "file_created";
                 alert.path = event_data.path;
-                alert.summary = std::format("New file detected: {}",
-                                             (*event_data.path).string());
+
+                // Check if this is a user file
+                std::string username;
+                if (event_data.source && (*event_data.source).starts_with("user:")) {
+                    username = (*event_data.source).substr(5);
+                    alert.summary = std::format("User {} new file detected: {}",
+                                                 username,
+                                                 (*event_data.path).string());
+                } else {
+                    alert.summary = std::format("New file detected: {}",
+                                                 (*event_data.path).string());
+                }
+
                 if (event_data.source) {
                     alert.details = std::format("Source: {}\nHash: {}",
                                                  *event_data.source,
                                                  *event_data.hash);
                 } else {
                     alert.details = std::format("Hash: {}", *event_data.hash);
+                }
+                if (!username.empty()) {
+                    alert.details = std::format("{}\nUsername: {}", alert.details.value_or(""), username);
                 }
             } else if constexpr (std::is_same_v<T, FileDeletedEvent>) {
                 alert.category = "file_deleted";

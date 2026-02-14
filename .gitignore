@@ -11,3 +11,22 @@
 # GoogleTest generated files
 *[1]_include.cmake
 *[1]_tests.cmake
+
+# Packaging artifacts
+*.rpm
+*.deb
+*.dsc
+*.changes
+*.buildinfo
+*.tar.xz
+*.orig.tar.gz
+/debian/.debhelper/
+/debian/vigilant-canine/
+/debian/vigilant-canine-api/
+/debian/files
+/debian/*.log
+/debian/*.substvars
+/obj-*/
+
+# RPM build
+/rpmbuild/

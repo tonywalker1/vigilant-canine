@@ -327,6 +327,24 @@ namespace vigilant_canine {
             return cfg;
         }
 
+        //
+        // Parse HomeMonitoringPolicy section.
+        //
+        auto parse_home_policy(toml::table const& root) -> HomeMonitoringPolicy {
+            HomeMonitoringPolicy cfg;
+
+            if (auto policy = root["policy"].as_table()) {
+                if (auto home = (*policy)["home"].as_table()) {
+                    cfg.monitor_users = parse_string_array((*home)["monitor_users"].as_array());
+                    cfg.monitor_groups = parse_string_array((*home)["monitor_groups"].as_array());
+                    cfg.allow_user_opt_out = get_or(*home, "allow_user_opt_out", cfg.allow_user_opt_out);
+                    cfg.mandatory_paths = parse_string_array((*home)["mandatory_paths"].as_array());
+                }
+            }
+
+            return cfg;
+        }
+
     }  // anonymous namespace
 
     auto load_config(std::filesystem::path const& path)
@@ -344,6 +362,7 @@ namespace vigilant_canine {
             cfg.journal = parse_journal(toml);            // Phase 2
             cfg.correlation = parse_correlation(toml);    // Phase 2
             cfg.audit = parse_audit(toml);                // Phase 3
+            cfg.home_policy = parse_home_policy(toml);    // Home monitoring policy
 
             return cfg;
         }
@@ -367,6 +386,106 @@ namespace vigilant_canine {
         }
 
         return load_config(path);
+    }
+
+    auto merge_configs(
+        Config const& system_config,
+        HomeMonitoringPolicy const& policy,
+        std::optional<Config> const& user_config,
+        std::filesystem::path const& home_dir
+    ) -> Config {
+
+        Config merged = system_config;
+
+        // Store the policy in the merged config
+        merged.home_policy = policy;
+
+        // If no user config, return system config with policy
+        if (!user_config.has_value()) {
+            return merged;
+        }
+
+        auto const& user = user_config.value();
+
+        // Merge home monitoring configuration
+        // Policy settings override user preferences
+        merged.monitor.home.enabled = user.monitor.home.enabled;
+
+        // Merge paths: start with user paths
+        std::vector<std::filesystem::path> merged_paths;
+
+        for (auto const& path : user.monitor.home.paths) {
+            // Convert relative paths to absolute
+            if (path.is_relative()) {
+                merged_paths.push_back(home_dir / path);
+            } else {
+                merged_paths.push_back(path);
+            }
+        }
+
+        // Add mandatory paths from policy if not already present
+        for (auto const& mandatory : policy.mandatory_paths) {
+            std::filesystem::path abs_mandatory = mandatory;
+            if (abs_mandatory.is_relative()) {
+                abs_mandatory = home_dir / mandatory;
+            }
+
+            // Check if already in merged_paths
+            if (std::ranges::find(merged_paths, abs_mandatory) == merged_paths.end()) {
+                merged_paths.push_back(abs_mandatory);
+            }
+        }
+
+        merged.monitor.home.paths = std::move(merged_paths);
+
+        // Merge exclusion patterns
+        std::vector<std::filesystem::path> merged_exclude;
+
+        for (auto const& excl : user.monitor.home.exclude) {
+            // Convert relative paths to absolute
+            if (excl.is_relative()) {
+                merged_exclude.push_back(home_dir / excl);
+            } else {
+                merged_exclude.push_back(excl);
+            }
+        }
+
+        // Remove any mandatory paths from exclusions
+        std::vector<std::filesystem::path> filtered_exclude;
+        for (auto const& excl : merged_exclude) {
+            bool is_mandatory = false;
+
+            for (auto const& mandatory : policy.mandatory_paths) {
+                std::filesystem::path abs_mandatory = mandatory;
+                if (abs_mandatory.is_relative()) {
+                    abs_mandatory = home_dir / mandatory;
+                }
+
+                // Check if exclusion matches or is under a mandatory path
+                if (excl == abs_mandatory || excl.string().starts_with(abs_mandatory.string())) {
+                    is_mandatory = true;
+                    break;
+                }
+            }
+
+            if (!is_mandatory) {
+                filtered_exclude.push_back(excl);
+            }
+        }
+
+        merged.monitor.home.exclude = std::move(filtered_exclude);
+
+        // Hash algorithm: user preference if set, otherwise system default
+        if (user.hash.algorithm != HashAlgorithm::blake3) {
+            merged.hash.algorithm = user.hash.algorithm;
+        }
+
+        // Alert preferences: merge user preferences
+        merged.alerts.journal = user.alerts.journal;
+        merged.alerts.dbus = user.alerts.dbus;
+        merged.alerts.socket = user.alerts.socket;
+
+        return merged;
     }
 
 }  // namespace vigilant_canine

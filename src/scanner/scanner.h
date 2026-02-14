@@ -108,6 +108,27 @@ namespace vigilant_canine {
             -> std::expected<void, std::string>;
 
         //
+        // Scan directory tree for a specific user with custom source.
+        //
+        // Scans files in the given paths, using a custom source identifier
+        // (e.g., "user:alice"). Supports exclusion patterns.
+        //
+        // Preconditions:
+        //   - paths must be valid directories
+        //   - source must be non-empty
+        //
+        // Postconditions:
+        //   - On success: returns scan statistics
+        //   - On failure: returns error message
+        //
+        [[nodiscard]] auto scan_user_paths(
+            std::vector<std::filesystem::path> const& paths,
+            std::vector<std::filesystem::path> const& exclude_patterns,
+            std::string const& source,
+            ScanProgressCallback const& progress = nullptr
+        ) -> std::expected<ScanStats, std::string>;
+
+        //
         // Set hash algorithm for scans.
         //
         void set_hash_algorithm(HashAlgorithm algorithm) {

@@ -1,0 +1,2 @@
+usr/bin/vigilant-canined-api
+usr/lib/systemd/system/vigilant-canined-api.service

@@ -79,6 +79,8 @@ add_executable(vigilant-canined
     src/audit/audit_parsing.cpp
     src/audit/audit_monitor.cpp
     src/storage/audit_event_store.cpp
+    # User monitoring
+    src/user/user_manager.cpp
 )
 
 target_link_libraries(vigilant-canined PRIVATE
@@ -217,3 +219,27 @@ install(FILES
     docs/troubleshooting.md
     DESTINATION ${CMAKE_INSTALL_DOCDIR}
 )
+
+# Packaging support
+set(CPACK_PACKAGE_NAME "vigilant-canine")
+set(CPACK_PACKAGE_VENDOR "Tony Narlock")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Simple host-level Intrusion Detection System")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+# Source tarball generation (for spec/debian)
+set(CPACK_SOURCE_GENERATOR "TGZ")
+set(CPACK_SOURCE_IGNORE_FILES
+    "/\\.git/"
+    "/build/"
+    "/\\.vscode/"
+    "/\\.idea/"
+    "\\.swp$"
+    "\\.swo$"
+    "~$"
+)
+
+include(CPack)

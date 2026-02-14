@@ -145,6 +145,16 @@ namespace vigilant_canine {
     };
 
     //
+    // Policy configuration for home directory monitoring.
+    //
+    struct HomeMonitoringPolicy {
+        std::vector<std::string> monitor_users;
+        std::vector<std::string> monitor_groups;
+        bool allow_user_opt_out{true};
+        std::vector<std::string> mandatory_paths;
+    };
+
+    //
     // Top-level configuration structure.
     //
     struct Config {
@@ -156,6 +166,7 @@ namespace vigilant_canine {
         JournalConfig journal;          // Phase 2
         CorrelationConfig correlation;  // Phase 2
         AuditConfig audit;              // Phase 3
+        HomeMonitoringPolicy home_policy;  // Home directory monitoring policy
     };
 
     //
@@ -179,6 +190,31 @@ namespace vigilant_canine {
     //
     [[nodiscard]] auto load_config_or_default(std::filesystem::path const& path)
         -> std::expected<Config, std::string>;
+
+    //
+    // Merge system, policy, and user configs with precedence rules.
+    //
+    // Precedence: policy > user > system
+    //
+    // Preconditions:
+    //   - system_config must be valid
+    //   - policy must be valid
+    //   - user_config may be nullopt
+    //   - home_dir must be valid path
+    //
+    // Postconditions:
+    //   - Returns merged config with:
+    //     - Policy settings enforced
+    //     - User paths merged with system paths
+    //     - Mandatory paths cannot be excluded
+    //     - Relative paths converted to absolute (using home_dir)
+    //
+    [[nodiscard]] auto merge_configs(
+        Config const& system_config,
+        HomeMonitoringPolicy const& policy,
+        std::optional<Config> const& user_config,
+        std::filesystem::path const& home_dir
+    ) -> Config;
 
 }  // namespace vigilant_canine
 

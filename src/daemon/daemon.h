@@ -24,6 +24,7 @@
 #include <storage/audit_event_store.h>
 #include <storage/baseline_store.h>
 #include <storage/database.h>
+#include <user/user_manager.h>
 
 #include <atomic>
 #include <expected>
@@ -111,6 +112,23 @@ namespace vigilant_canine {
         [[nodiscard]] auto create_strategy(DistroInfo const& distro)
             -> std::unique_ptr<BaselineStrategy>;
 
+        //
+        // Initialize user monitoring.
+        //
+        // Discovers users, evaluates policy, loads user configs, and sets up
+        // user path monitoring.
+        //
+        [[nodiscard]] auto initialize_user_monitoring()
+            -> std::expected<void, std::string>;
+
+        //
+        // Scan user baselines.
+        //
+        // Creates initial baselines for monitored users.
+        //
+        [[nodiscard]] auto scan_user_baselines()
+            -> std::expected<void, std::string>;
+
         std::filesystem::path m_config_path;
         Config m_config;
         DistroInfo m_distro;
@@ -138,6 +156,10 @@ namespace vigilant_canine {
         // Phase 3 components
         std::unique_ptr<AuditMonitor> m_audit_monitor;
         std::unique_ptr<AuditEventStore> m_audit_event_store;
+
+        // User monitoring
+        std::unique_ptr<UserManager> m_user_manager;
+        std::vector<UserInfo> m_monitored_users;
 
         // Lifecycle control
         std::atomic<bool> m_running{false};

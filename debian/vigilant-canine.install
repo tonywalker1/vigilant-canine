@@ -1,0 +1,3 @@
+usr/bin/vigilant-canined
+usr/lib/systemd/system/vigilant-canined.service
+usr/lib/tmpfiles.d/vigilant-canine.conf

@@ -1,0 +1,10 @@
+vigilant-canine (0.1.0-1) unstable; urgency=medium
+
+  * Initial release (Closes: #XXXXXX)
+  * File integrity monitoring via fanotify
+  * Log analysis via systemd journal
+  * Audit subsystem integration
+  * REST API daemon
+  * systemd integration with security hardening
+
+ -- Tony Narlock <tony@git-pull.com>  Thu, 13 Feb 2026 12:00:00 -0500

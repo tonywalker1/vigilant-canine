@@ -1,0 +1,50 @@
+Source: vigilant-canine
+Section: admin
+Priority: optional
+Maintainer: Tony Narlock <tony@git-pull.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.25),
+               g++ (>= 15) | clang (>= 18),
+               pkg-config,
+               libsqlite3-dev,
+               libsystemd-dev,
+               libssl-dev,
+               libblake3-dev,
+               libaudit-dev,
+               libhinder-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/tony/vigilant-canine
+Vcs-Browser: https://github.com/tony/vigilant-canine
+Vcs-Git: https://github.com/tony/vigilant-canine.git
+Rules-Requires-Root: no
+
+Package: vigilant-canine
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         systemd,
+         libsqlite3-0,
+         libssl3,
+         libblake3-0,
+         libaudit1,
+         libhinder
+Description: Simple host-level Intrusion Detection System
+ Vigilant Canine monitors file integrity, system logs, and the Linux audit
+ subsystem to detect suspicious activity on a single host.
+ .
+ Features:
+  - File integrity monitoring via fanotify
+  - Log analysis via systemd journal with pattern matching
+  - Audit subsystem integration for process/privilege tracking
+  - Desktop notifications via D-Bus
+  - Privilege separation architecture
+ .
+ Designed for home users and small offices with simplicity as the primary goal.
+
+Package: vigilant-canine-api
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         vigilant-canine (= ${binary:Version})
+Description: REST API daemon for Vigilant Canine
+ Optional REST API daemon that exposes Vigilant Canine alerts, baselines,
+ and events over a Unix domain socket for integration with web dashboards
+ and external tools.

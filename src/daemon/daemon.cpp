@@ -123,6 +123,7 @@ namespace vigilant_canine {
 
         m_alert_dispatcher = std::make_unique<AlertDispatcher>(*m_event_bus,
                                                                  *m_alert_store,
+                                                                 *m_baseline_store,
                                                                  dispatch_config);
 
         // Phase 3: Audit monitor
@@ -149,6 +150,15 @@ namespace vigilant_canine {
                     audit_init_result.error().c_str());
                 m_audit_monitor.reset();  // Don't keep unusable monitor
             }
+        }
+
+        // Initialize user monitoring
+        auto user_init_result = initialize_user_monitoring();
+        if (!user_init_result) {
+            sd_journal_print(LOG_WARNING,
+                "vigilant-canined: User monitoring initialization failed: %s",
+                user_init_result.error().c_str());
+            // Continue anyway - user monitoring is optional
         }
 
         sd_journal_print(LOG_INFO, "vigilant-canined: Initialization complete");
@@ -217,6 +227,14 @@ namespace vigilant_canine {
                             scan_result->files_added);
                     }
                 }
+            }
+
+            // Scan user baselines
+            auto user_scan_result = scan_user_baselines();
+            if (!user_scan_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: User baseline scan failed: %s",
+                    user_scan_result.error().c_str());
             }
         }
 
@@ -312,6 +330,133 @@ namespace vigilant_canine {
         }
 
         return std::make_unique<TraditionalStrategy>();
+    }
+
+    auto Daemon::initialize_user_monitoring() -> std::expected<void, std::string> {
+        // Create user manager
+        m_user_manager = std::make_unique<UserManager>();
+
+        // Discover users with interactive shells (UID >= 1000)
+        auto users_result = m_user_manager->discover_users();
+        if (!users_result) {
+            return std::unexpected(std::format("Failed to discover users: {}",
+                                                users_result.error()));
+        }
+
+        auto const& all_users = users_result.value();
+        sd_journal_print(LOG_INFO, "vigilant-canined: Discovered %zu users",
+                         all_users.size());
+
+        // For each user, check if monitoring applies
+        for (auto const& user : all_users) {
+            // Load user config if it exists
+            auto user_config_result = m_user_manager->load_user_config(user);
+            if (!user_config_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Failed to load config for user %s: %s",
+                    user.username.c_str(),
+                    user_config_result.error().c_str());
+                continue;
+            }
+
+            auto const& user_config_opt = user_config_result.value();
+            bool user_config_exists = user_config_opt.has_value();
+            bool user_config_enabled = user_config_exists
+                ? user_config_opt.value().monitor.home.enabled
+                : false;
+
+            // Check if user should be monitored based on policy
+            bool should_monitor = m_user_manager->should_monitor_user(
+                user,
+                m_config.home_policy,
+                user_config_exists,
+                user_config_enabled
+            );
+
+            if (!should_monitor) {
+                continue;
+            }
+
+            // Merge configs for this user
+            auto merged_config = merge_configs(
+                m_config,
+                m_config.home_policy,
+                user_config_opt,
+                user.home_dir
+            );
+
+            // Add user paths to fanotify monitor
+            for (auto const& path : merged_config.monitor.home.paths) {
+                if (std::filesystem::exists(path)) {
+                    // Note: The fanotify monitor will handle adding paths
+                    // For now, we just track the user for baseline scanning
+                }
+            }
+
+            m_monitored_users.push_back(user);
+
+            sd_journal_print(LOG_INFO,
+                "vigilant-canined: User %s: monitoring enabled (%zu paths)",
+                user.username.c_str(),
+                merged_config.monitor.home.paths.size());
+        }
+
+        sd_journal_print(LOG_INFO, "vigilant-canined: Monitoring %zu users",
+                         m_monitored_users.size());
+
+        return {};
+    }
+
+    auto Daemon::scan_user_baselines() -> std::expected<void, std::string> {
+        if (m_monitored_users.empty()) {
+            return {};
+        }
+
+        sd_journal_print(LOG_INFO,
+            "vigilant-canined: Scanning baselines for %zu monitored users",
+            m_monitored_users.size());
+
+        for (auto const& user : m_monitored_users) {
+            // Load user config
+            auto user_config_result = m_user_manager->load_user_config(user);
+            if (!user_config_result || !user_config_result->has_value()) {
+                continue;
+            }
+
+            auto const& user_config = user_config_result->value();
+
+            // Merge configs
+            auto merged_config = merge_configs(
+                m_config,
+                m_config.home_policy,
+                user_config,
+                user.home_dir
+            );
+
+            // Scan user paths
+            std::string source = std::format("user:{}", user.username);
+
+            auto scan_result = m_scanner->scan_user_paths(
+                merged_config.monitor.home.paths,
+                merged_config.monitor.home.exclude,
+                source
+            );
+
+            if (scan_result) {
+                sd_journal_print(LOG_INFO,
+                    "vigilant-canined: User %s baseline: %zu files scanned, %zu added",
+                    user.username.c_str(),
+                    scan_result->files_scanned,
+                    scan_result->files_added);
+            } else {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Failed to scan baseline for user %s: %s",
+                    user.username.c_str(),
+                    scan_result.error().c_str());
+            }
+        }
+
+        return {};
     }
 
 }  // namespace vigilant_canine

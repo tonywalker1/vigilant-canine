@@ -317,4 +317,130 @@ namespace vigilant_canine {
         return changes;
     }
 
+    auto Scanner::scan_user_paths(
+        std::vector<std::filesystem::path> const& paths,
+        std::vector<std::filesystem::path> const& exclude_patterns,
+        std::string const& source,
+        ScanProgressCallback const& progress
+    ) -> std::expected<ScanStats, std::string> {
+
+        if (source.empty()) {
+            return std::unexpected("Source identifier cannot be empty");
+        }
+
+        ScanStats stats;
+
+        for (auto const& path : paths) {
+            // Skip if path doesn't exist (user might not have all directories)
+            if (!std::filesystem::exists(path)) {
+                continue;
+            }
+
+            // Skip if not a directory
+            if (!std::filesystem::is_directory(path)) {
+                continue;
+            }
+
+            std::error_code ec;
+            auto iterator = std::filesystem::recursive_directory_iterator(
+                path,
+                std::filesystem::directory_options::skip_permission_denied,
+                ec);
+
+            if (ec) {
+                // Skip directories we can't read
+                continue;
+            }
+
+            for (auto const& entry : iterator) {
+                // Check exclusions
+                bool excluded = false;
+                for (auto const& exclude : exclude_patterns) {
+                    if (entry.path().string().starts_with(exclude.string())) {
+                        excluded = true;
+                        break;
+                    }
+                }
+
+                if (excluded) {
+                    stats.files_skipped++;
+                    continue;
+                }
+
+                // Only scan regular files
+                if (!entry.is_regular_file(ec)) {
+                    if (ec) {
+                        stats.errors++;
+                    }
+                    continue;
+                }
+
+                // Get file metadata
+                FilePath file_path{entry.path()};
+                auto metadata_result = get_file_metadata(*file_path);
+                if (!metadata_result) {
+                    stats.errors++;
+                    continue;
+                }
+
+                auto const& metadata = *metadata_result;
+
+                // Calculate hash
+                auto hash_result = hash_file(file_path, m_algorithm);
+                if (!hash_result) {
+                    stats.errors++;
+                    continue;
+                }
+
+                // Check if baseline already exists
+                auto deployment = m_strategy.get_deployment_id();
+                auto existing = m_store.find_by_path(file_path, deployment);
+
+                if (!existing) {
+                    stats.errors++;
+                    continue;
+                }
+
+                Baseline baseline;
+                baseline.path = file_path;
+                baseline.hash_alg = std::string{algorithm_to_string(m_algorithm)};
+                baseline.hash_value = *hash_result;
+                baseline.size = static_cast<std::int64_t>(metadata.size);
+                baseline.mode = metadata.mode;
+                baseline.uid = metadata.uid;
+                baseline.gid = metadata.gid;
+                baseline.mtime_ns = metadata.mtime_ns;
+                baseline.source = source;  // Use custom source
+                baseline.deployment = deployment;
+
+                if (existing->has_value()) {
+                    // Update existing baseline
+                    auto update_result = m_store.update(baseline);
+                    if (!update_result) {
+                        stats.errors++;
+                        continue;
+                    }
+                    stats.files_updated++;
+                } else {
+                    // Insert new baseline
+                    auto insert_result = m_store.insert(baseline);
+                    if (!insert_result) {
+                        stats.errors++;
+                        continue;
+                    }
+                    stats.files_added++;
+                }
+
+                stats.files_scanned++;
+
+                // Report progress
+                if (progress) {
+                    progress(file_path, stats);
+                }
+            }
+        }
+
+        return stats;
+    }
+
 }  // namespace vigilant_canine

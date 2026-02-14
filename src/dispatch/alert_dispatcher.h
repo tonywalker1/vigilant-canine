@@ -11,6 +11,7 @@
 #include <events/event.h>
 #include <events/event_bus.h>
 #include <storage/alert_store.h>
+#include <storage/baseline_store.h>
 
 #include <expected>
 #include <memory>
@@ -43,6 +44,7 @@ namespace vigilant_canine {
     public:
         AlertDispatcher(EventBus& event_bus,
                         AlertStore& alert_store,
+                        BaselineStore& baseline_store,
                         AlertDispatcherConfig config = {},
                         DbusNotifier* dbus_notifier = nullptr);  // Phase 2
 
@@ -94,6 +96,7 @@ namespace vigilant_canine {
 
         EventBus& m_event_bus;
         AlertStore& m_alert_store;
+        BaselineStore& m_baseline_store;
         AlertDispatcherConfig m_config;
         DbusNotifier* m_dbus_notifier{nullptr};  // Phase 2: optional notifier
         bool m_running{false};
