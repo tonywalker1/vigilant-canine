@@ -68,6 +68,7 @@ Key components:
 - **FanotifyMonitor** — Real-time file access event monitoring (Phase 1)
 - **JournalMonitor** — systemd journal rule-based log monitoring (Phase 2)
 - **AuditMonitor** — Linux audit subsystem monitoring with multi-record correlation (Phase 3)
+- **UserManager** — User discovery and home directory monitoring with policy enforcement
 - **CorrelationEngine** — Time-windowed event aggregation and threshold detection (Phase 2)
 - **EventBus** — Synchronous pub/sub event distribution with mutex serialization
 - **PolicyEngine** — Rule evaluation and event filtering
@@ -135,6 +136,35 @@ Notifications include alert severity mapping to urgency levels:
 - INFO → low urgency
 - WARNING → normal urgency
 - CRITICAL → critical urgency
+
+### User Home Directory Monitoring
+
+Home directory monitoring is handled by the **UserManager** component, which provides opt-in monitoring of user-installed software and configuration files while respecting privacy.
+
+**Design principles:**
+- **Opt-in by default**: Users must explicitly enable monitoring via `~/.config/vigilant-canine/config.toml`
+- **Policy enforcement**: Administrators can mandate monitoring for specific users/groups
+- **Privacy-focused**: Users control which paths are monitored and can exclude sensitive directories
+- **Per-user baselines**: User files are stored separately in the database (`source = "user:username"`)
+
+**How it works:**
+1. **User Discovery**: On startup, UserManager enumerates all users with UID >= 1000 and interactive shells
+2. **Policy Evaluation**: For each user, checks if monitoring applies (admin policy or user opt-in)
+3. **Config Loading**: Reads user configurations from `~/.config/vigilant-canine/config.toml`
+4. **Config Merging**: Merges system, policy, and user configurations with precedence rules (policy > user > system)
+5. **Baseline Creation**: Creates file integrity baselines for user files, stored with source attribution
+6. **Monitoring**: FanotifyMonitor watches user paths just like system paths, but alerts include username context
+
+**Policy enforcement:**
+- Administrators can configure `/etc/vigilant-canine/config.toml` with `[policy.home]` settings
+- Policy can require monitoring for specific users or groups (e.g., administrators, developers)
+- Policy can define mandatory paths that cannot be excluded by users
+- Users can opt out only if `allow_user_opt_out = true` in policy
+
+**Alert context:**
+Alerts for user files include username attribution, allowing administrators to identify which user's files triggered an alert.
+
+See [docs/user-monitoring.md](user-monitoring.md) for complete configuration and usage details.
 
 ## Technology Decisions
 

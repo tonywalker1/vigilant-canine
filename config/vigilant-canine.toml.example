@@ -45,25 +45,19 @@ exclude = [
     "/etc/gshadow-",
 ]
 
-[monitor.flatpak]
-# Monitor Flatpak applications for tampering
-enabled = true
+# [monitor.flatpak]
+# # PLANNED FEATURE - Not yet implemented
+# # Monitor Flatpak applications for tampering
+# enabled = false
+# system = true
+# user = false
 
-# Monitor system-wide Flatpak installations
-system = true
-
-# Monitor per-user Flatpak installations
-user = false
-
-[monitor.ostree]
-# Monitor OSTree deployments (for rpm-ostree/Fedora Silverblue systems)
-enabled = true
-
-# Verify deployment checksums on boot
-verify_deployments = true
-
-# Monitor the OSTree object store for integrity
-monitor_object_store = true
+# [monitor.ostree]
+# # PLANNED FEATURE - Not yet implemented
+# # Monitor OSTree deployments (for rpm-ostree/Fedora Silverblue systems)
+# enabled = false
+# verify_deployments = true
+# monitor_object_store = true
 
 [monitor.home]
 # Monitor user home directories (disabled by default for privacy)
@@ -133,3 +127,35 @@ window_seconds = 300
 # threshold = 5
 # window_seconds = 60
 # escalated_severity = "critical"
+
+[audit]
+# Enable Linux audit subsystem monitoring
+enabled = true
+
+# Sanitize command lines to prevent credential exposure
+sanitize_command_lines = true
+
+# Exclude specific commands from monitoring
+exclude_comms = []
+
+# Exclude specific UIDs from monitoring
+exclude_uids = []
+
+# Custom audit rules (beyond the built-in defaults)
+# Built-in rules cover: privilege escalation, sensitive file access,
+# suspicious network connections, kernel module loading
+# rules = []
+
+[policy.home]
+# Force monitoring for specific users (cannot opt out)
+monitor_users = []
+
+# Force monitoring for users in these groups
+monitor_groups = []
+
+# Allow users to opt out of monitoring (only if not in monitor_users/groups)
+allow_user_opt_out = true
+
+# Mandatory paths that must be monitored for all monitored users
+# Users can add more paths but cannot remove these
+mandatory_paths = []

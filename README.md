@@ -50,9 +50,51 @@ See [docs/architecture.md](docs/architecture.md) for full details and rationale.
 - ✅ **Phase 3**: Multi-record event correlation with command-line sanitization
 - ✅ **systemd integration**: Service files and installation support
 - ✅ **API daemon**: REST API over Unix socket for querying alerts and events
+- ✅ **User home directory monitoring**: Opt-in monitoring for user-installed software with policy enforcement
 - ⏳ **Web dashboard**: Static frontend (planned, not required for core functionality)
 
-# Getting Started
+# Installation
+
+## From Package Repository (Recommended)
+
+### Fedora/RHEL
+```bash
+# Add COPR repository (once available)
+sudo dnf copr enable yourusername/vigilant-canine
+
+# Install
+sudo dnf install vigilant-canine
+```
+
+### Ubuntu/Debian
+```bash
+# Add PPA (once available)
+sudo add-apt-repository ppa:yourusername/vigilant-canine
+sudo apt update
+
+# Install
+sudo apt install vigilant-canine
+```
+
+## From Binary Package
+
+Download the appropriate package for your distribution from the releases page.
+
+### Fedora/RHEL
+```bash
+sudo dnf install vigilant-canine-*.rpm
+```
+
+### Ubuntu/Debian
+```bash
+sudo apt install ./vigilant-canine_*.deb
+```
+
+## From Source
+
+See [Building from Source](#building-from-source) below for manual compilation and installation.
+
+# Building from Source
 
 ## Dependencies
 
@@ -113,17 +155,6 @@ sudo $EDITOR /etc/vigilant-canine/config.toml
 
 See [config/vigilant-canine.toml.example](config/vigilant-canine.toml.example) for all available options.
 
-## Running
-
-The daemon requires elevated privileges to monitor file access events:
-
-```bash
-# Run directly (for testing)
-sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.toml
-
-# Or run in foreground with debug logging
-sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.toml --log-level debug
-
 ## systemd Installation
 
 After building:
@@ -161,7 +192,7 @@ sudo systemctl enable --now vigilant-canined-api.service
 # Or run manually for testing
 ./build/gcc-debug/vigilant-canined-api \
     -s /tmp/api.sock \
-    -d /var/lib/vigilant-canine/vigilant-canine.db
+    -d /var/lib/vigilant-canine/vc.db
 
 # Query health endpoint
 curl --unix-socket /tmp/api.sock http://localhost/api/v1/health
@@ -176,19 +207,6 @@ See [docs/api.md](docs/api.md) for complete API documentation and endpoint detai
 A testing script is provided for manual verification:
 ```bash
 ./scripts/test-api.sh
-```
-
-## Manual Execution (Development/Testing)
-
-For development or testing without systemd:
-
-```bash
-# Run directly (for testing)
-sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.toml
-
-# Or run in foreground with debug logging (if --log-level flag exists)
-sudo ./build/gcc-debug/vigilant-canined --config /etc/vigilant-canine/config.toml
-```
 ```
 
 **Note:** The core monitoring daemon is feature-complete with file integrity monitoring, log analysis, and audit subsystem integration. The API daemon provides optional query capabilities for external tools and dashboards. A web dashboard frontend is planned for future releases.
@@ -207,9 +225,42 @@ On first run, the daemon will:
 
 You'll receive desktop notifications for security events detected across all monitoring subsystems.
 
+## User Home Directory Monitoring
+
+Vigilant Canine can monitor user home directories for changes to user-installed software and
+configuration files. This feature:
+
+- **Opt-in by default**: Users must explicitly enable monitoring via `~/.config/vigilant-canine/config.toml`
+- **Privacy-focused**: Users can exclude sensitive directories (Downloads, caches, etc.)
+- **Policy enforcement**: Administrators can require monitoring for specific users or groups
+
+### Enabling User Monitoring
+
+To enable monitoring for your user account:
+
+```bash
+# Create configuration directory
+mkdir -p ~/.config/vigilant-canine
+
+# Copy example configuration
+cp /usr/share/doc/vigilant-canine/user-config.toml.example \
+   ~/.config/vigilant-canine/config.toml
+
+# Edit and enable
+$EDITOR ~/.config/vigilant-canine/config.toml
+# Set: [monitor.home] enabled = true
+
+# Restart daemon
+sudo systemctl restart vigilant-canined.service
+```
+
+See [docs/user-monitoring.md](docs/user-monitoring.md) for complete documentation, including
+policy configuration for administrators.
+
 ## Documentation
 
 - [Configuration Guide](docs/configuration.md) - Detailed configuration options and examples
+- [User Home Directory Monitoring](docs/user-monitoring.md) - User monitoring setup and policy enforcement
 - [Architecture](docs/architecture.md) - System design and component responsibilities
 - [API Documentation](docs/api.md) - REST API endpoints and usage examples
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions

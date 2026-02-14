@@ -64,48 +64,37 @@ exclude = ["/etc/machine-id", "/etc/hostname"]
   - Temporary files should be excluded
   - Default: See example config
 
-### `[monitor.flatpak]` - Flatpak Monitoring
+### `[monitor.flatpak]` - Flatpak Monitoring (Planned)
+
+**Status:** Configuration defined but not yet implemented. Will be added in a future release.
 
 ```toml
 [monitor.flatpak]
-enabled = true
+enabled = false  # Not yet functional
 system = true
 user = false
 ```
 
-- **enabled**: Enable Flatpak application monitoring
-  - Detects tampering with Flatpak installations
-  - Default: `true`
+Planned functionality:
+- Monitor system-wide Flatpak installations for tampering
+- Detect unauthorized modifications to Flatpak apps
+- Track per-user Flatpak installations
 
-- **system**: Monitor system-wide Flatpak installations (`/var/lib/flatpak`)
-  - Default: `true`
+### `[monitor.ostree]` - OSTree Monitoring (Planned)
 
-- **user**: Monitor per-user Flatpak installations (`~/.local/share/flatpak`)
-  - Can generate many alerts on multi-user systems
-  - Default: `false`
-
-### `[monitor.ostree]` - OSTree Monitoring
+**Status:** Configuration defined but not yet implemented. Will be added in a future release.
 
 ```toml
 [monitor.ostree]
-enabled = true
+enabled = false  # Not yet functional
 verify_deployments = true
 monitor_object_store = true
 ```
 
-Relevant for OSTree-based distributions like Fedora Silverblue, Fedora Kinoite, and other rpm-ostree systems.
-
-- **enabled**: Enable OSTree deployment monitoring
-  - Auto-disabled on non-OSTree systems
-  - Default: `true`
-
-- **verify_deployments**: Verify deployment checksums on boot
-  - Ensures bootable deployments haven't been tampered with
-  - Default: `true`
-
-- **monitor_object_store**: Monitor the OSTree object store
-  - Watches `/ostree/repo` for unauthorized changes
-  - Default: `true`
+Planned functionality (for OSTree-based distributions like Fedora Silverblue):
+- Verify OSTree deployment checksums on boot
+- Monitor the OSTree object store for integrity
+- Detect unauthorized changes to bootable deployments
 
 ### `[monitor.home]` - Home Directory Monitoring
 
@@ -257,6 +246,62 @@ Each `[[correlation.rules]]` entry defines threshold-based alerting:
 
 **Example:** Detect brute-force SSH attacks by escalating to critical when 5 auth failures occur within 60 seconds.
 
+### `[audit]` - Linux Audit Subsystem Monitoring (Phase 3)
+
+```toml
+[audit]
+enabled = true
+sanitize_command_lines = true
+exclude_comms = []
+exclude_uids = []
+```
+
+Monitor security events from the Linux audit subsystem for deeper visibility into process execution, privilege changes, network connections, and file access attempts.
+
+- **enabled**: Enable Linux audit subsystem integration
+  - Requires libaudit and libauparse
+  - Provides process execution tracking with command-line arguments
+  - Tracks privilege escalation and network connections
+  - Default: `true`
+
+- **sanitize_command_lines**: Remove sensitive data from command lines before logging
+  - Prevents credential exposure in logs (passwords, tokens, API keys)
+  - Sanitizes common patterns: `--password=X`, `-p X`, etc.
+  - Always recommended for security
+  - Default: `true`
+
+- **exclude_comms**: Command names to exclude from audit monitoring
+  - Use for noisy system processes
+  - Example: `["systemd-resolve", "dbus-daemon"]`
+  - Default: `[]`
+
+- **exclude_uids**: User IDs to exclude from audit monitoring
+  - Use to ignore specific system users
+  - Example: `[0]` to exclude root
+  - Default: `[]`
+
+**Built-in Audit Rules:** The daemon includes 10 default rules covering:
+- Privilege escalation detection (setuid/setgid execution)
+- Unauthorized file access attempts
+- Suspicious network connections
+- Kernel module loading
+- Process execution patterns
+- Failed access to sensitive files
+- Credential file access attempts
+- System call anomalies
+- User context changes
+- Network listener creation
+
+**Event Types:**
+- `ProcessExecution` - New process started with full command line
+- `NetworkConnection` - Outbound network connection or listener
+- `FailedAccess` - Denied file or resource access attempt
+- `PrivilegeChange` - UID/GID change or capability modification
+
+**Multi-record Correlation:** The audit monitor automatically correlates related audit records (SYSCALL + EXECVE + CWD + PATH) within 100ms windows to provide complete event context.
+
+Custom rules can be added via `[[audit.rules]]` sections with similar syntax to journal rules.
+
 ## Example Configurations
 
 ### Minimal Configuration (All Defaults)
@@ -277,6 +322,10 @@ enabled = true
 
 [correlation]
 enabled = true
+
+[audit]
+enabled = true
+sanitize_command_lines = true
 ```
 
 ### High-Security Workstation
@@ -317,6 +366,12 @@ event_match = "ssh_auth_failure"
 threshold = 5
 window_seconds = 60
 escalated_severity = "critical"
+
+[audit]
+enabled = true
+sanitize_command_lines = true
+# Exclude noisy system processes
+exclude_comms = ["systemd-resolve"]
 ```
 
 ### Server/Headless System
@@ -359,6 +414,10 @@ event_match = "service_failure"
 threshold = 3
 window_seconds = 300
 escalated_severity = "critical"
+
+[audit]
+enabled = true
+sanitize_command_lines = true
 ```
 
 ## Validation
