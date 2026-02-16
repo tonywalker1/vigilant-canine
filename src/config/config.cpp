@@ -148,8 +148,21 @@ namespace vigilant_canine {
             ScanConfig cfg;
 
             if (auto scan = root["scan"].as_table()) {
-                cfg.schedule = get_or(*scan, "schedule", cfg.schedule);
                 cfg.on_boot = get_or(*scan, "on_boot", cfg.on_boot);
+
+                // Parse integer fields
+                if (auto interval = (*scan)["interval_hours"].value<std::int64_t>()) {
+                    cfg.interval_hours = static_cast<std::uint32_t>(*interval);
+                }
+                if (auto batch = (*scan)["batch_size"].value<std::int64_t>()) {
+                    cfg.batch_size = static_cast<std::uint32_t>(*batch);
+                }
+                if (auto threshold = (*scan)["battery_pause_threshold"].value<std::int64_t>()) {
+                    cfg.battery_pause_threshold = static_cast<std::uint8_t>(*threshold);
+                }
+
+                cfg.adaptive_pacing = get_or(*scan, "adaptive_pacing", cfg.adaptive_pacing);
+                cfg.battery_slowdown_factor = get_or(*scan, "battery_slowdown_factor", cfg.battery_slowdown_factor);
             }
 
             return cfg;

@@ -102,6 +102,18 @@ namespace vigilant_canine {
             -> std::expected<std::vector<FileChange>, std::string>;
 
         //
+        // Verify a single file against its baseline.
+        //
+        // Compares stored baseline with current file state and reports change.
+        //
+        // Postconditions:
+        //   - On success: returns optional FileChange (nullopt if unchanged)
+        //   - On failure: returns error message
+        //
+        [[nodiscard]] auto verify_file(FilePath const& path)
+            -> std::expected<std::optional<FileChange>, std::string>;
+
+        //
         // Scan a single file and create/update baseline.
         //
         [[nodiscard]] auto scan_file(FilePath const& path)

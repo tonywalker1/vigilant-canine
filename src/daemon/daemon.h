@@ -19,6 +19,8 @@
 #include <monitor/fanotify_monitor.h>
 #include <notify/dbus_notifier.h>
 #include <policy/policy_engine.h>
+#include <power/power_monitor.h>
+#include <scanner/distributed_scanner.h>
 #include <scanner/scanner.h>
 #include <storage/alert_store.h>
 #include <storage/audit_event_store.h>
@@ -156,6 +158,10 @@ namespace vigilant_canine {
         // Phase 3 components
         std::unique_ptr<AuditMonitor> m_audit_monitor;
         std::unique_ptr<AuditEventStore> m_audit_event_store;
+
+        // Distributed scanner components
+        std::unique_ptr<PowerMonitor> m_power_monitor;
+        std::unique_ptr<DistributedScanner> m_distributed_scanner;
 
         // User monitoring
         std::unique_ptr<UserManager> m_user_manager;

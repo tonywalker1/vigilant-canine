@@ -161,6 +161,19 @@ namespace vigilant_canine {
             // Continue anyway - user monitoring is optional
         }
 
+        // Create power monitor
+        m_power_monitor = std::make_unique<PowerMonitor>();
+
+        // Create distributed scanner
+        m_distributed_scanner = std::make_unique<DistributedScanner>(
+            *m_scanner,
+            *m_baseline_store,
+            *m_strategy,
+            *m_event_bus,
+            *m_power_monitor,
+            m_config.scan
+        );
+
         sd_journal_print(LOG_INFO, "vigilant-canined: Initialization complete");
         return {};
     }
@@ -238,6 +251,16 @@ namespace vigilant_canine {
             }
         }
 
+        // Start distributed scanner
+        auto dist_scanner_result = m_distributed_scanner->start();
+        if (!dist_scanner_result) {
+            sd_journal_print(LOG_WARNING,
+                "vigilant-canined: Distributed scanner start failed: %s",
+                dist_scanner_result.error().c_str());
+        } else {
+            sd_journal_print(LOG_INFO, "vigilant-canined: Distributed scanner started");
+        }
+
         m_running.store(true);
         sd_journal_print(LOG_INFO, "vigilant-canined: Daemon running");
 
@@ -259,6 +282,9 @@ namespace vigilant_canine {
         sd_journal_print(LOG_INFO, "vigilant-canined: Shutting down");
 
         // Stop components
+        if (m_distributed_scanner) {
+            m_distributed_scanner->stop();
+        }
         m_fanotify_monitor->stop();
         m_alert_dispatcher->stop();
         if (m_audit_monitor) {
@@ -290,6 +316,11 @@ namespace vigilant_canine {
         AlertDispatcherConfig dispatch_config;
         dispatch_config.log_to_journal = m_config.alerts.journal;
         dispatch_config.send_dbus = m_config.alerts.dbus;
+
+        // Update distributed scanner config
+        if (m_distributed_scanner) {
+            m_distributed_scanner->update_config(m_config.scan);
+        }
 
         // Phase 3: Hot reload audit rules
         if (m_audit_monitor && m_config.audit.enabled) {

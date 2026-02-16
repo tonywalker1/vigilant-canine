@@ -64,6 +64,8 @@ add_executable(vigilant-canined
     src/distro/detector.cpp
     src/baseline/strategy.cpp
     src/scanner/scanner.cpp
+    src/scanner/distributed_scanner.cpp
+    src/power/power_monitor.cpp
     src/events/event.cpp
     src/events/event_bus.cpp
     src/monitor/fanotify_monitor.cpp

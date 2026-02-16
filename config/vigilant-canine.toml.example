@@ -88,11 +88,23 @@ dbus = true
 socket = true
 
 [scan]
-# Baseline scan schedule: "daily", "weekly", "monthly", or cron expression
-schedule = "daily"
-
 # Perform full baseline scan on boot
 on_boot = true
+
+# Interval between full scan cycles (hours)
+interval_hours = 24
+
+# Number of files to verify per batch (0 = auto-calculate to spread work evenly)
+batch_size = 0
+
+# Adjust verification pacing based on AC vs battery power
+adaptive_pacing = true
+
+# Slowdown factor when on battery power (multiplies sleep between batches)
+battery_slowdown_factor = 2.0
+
+# Pause verification when battery level drops below this percentage
+battery_pause_threshold = 20
 
 [journal]
 # Enable systemd journal monitoring
