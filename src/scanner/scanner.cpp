@@ -192,6 +192,88 @@ namespace vigilant_canine {
         return stats;
     }
 
+    auto Scanner::verify_file(FilePath const& path)
+        -> std::expected<std::optional<FileChange>, std::string> {
+
+        // Check if baseline exists
+        auto deployment = m_strategy.get_deployment_id();
+        auto baseline_result = m_store.find_by_path(path, deployment);
+
+        if (!baseline_result) {
+            return std::unexpected(std::format("Failed to query baseline for {}", (*path).string()));
+        }
+
+        if (!baseline_result->has_value()) {
+            // New file (no baseline)
+            FileChange change;
+            change.path = path;
+            change.change_type = "new";
+
+            // Publish FileCreatedEvent
+            auto hash_result = hash_file(path, m_algorithm);
+            if (hash_result) {
+                FileCreatedEvent file_event{
+                    path,
+                    *hash_result,
+                    std::nullopt
+                };
+                m_event_bus.publish(Event{file_event, EventSeverity::warning, "scanner"});
+            }
+
+            return change;
+        }
+
+        // Compare current state with baseline
+        auto const& baseline = baseline_result->value();
+
+        // Get current metadata
+        auto metadata_result = get_file_metadata(*path);
+        if (!metadata_result) {
+            return std::unexpected(std::format("Failed to get metadata for {}", (*path).string()));
+        }
+
+        auto const& metadata = *metadata_result;
+
+        // Quick check: size or mtime changed
+        bool needs_hash_check = false;
+
+        if (metadata.size != static_cast<std::uint64_t>(baseline.size)) {
+            needs_hash_check = true;
+        } else if (metadata.mtime_ns != baseline.mtime_ns) {
+            needs_hash_check = true;
+        }
+
+        if (needs_hash_check) {
+            // Calculate hash to verify
+            auto hash_result = hash_file(path, m_algorithm);
+            if (!hash_result) {
+                return std::unexpected(std::format("Failed to hash file {}", (*path).string()));
+            }
+
+            if (*(*hash_result) != *(baseline.hash_value)) {
+                FileChange change;
+                change.path = path;
+                change.change_type = "modified";
+                change.details = std::format("Hash mismatch: expected {}, got {}",
+                                               *(baseline.hash_value), *(*hash_result));
+
+                // Publish FileModifiedEvent
+                FileModifiedEvent mod_event{
+                    path,
+                    baseline.hash_value,
+                    *hash_result,
+                    *change.details
+                };
+                m_event_bus.publish(Event{mod_event, EventSeverity::critical, "scanner"});
+
+                return change;
+            }
+        }
+
+        // File unchanged
+        return std::nullopt;
+    }
+
     auto Scanner::verify_baselines(std::filesystem::path const& path,
                                      ScanProgressCallback const& progress)
         -> std::expected<std::vector<FileChange>, std::string> {
@@ -227,84 +309,16 @@ namespace vigilant_canine {
 
             FilePath file_path{entry.path()};
 
-            // Check if baseline exists
-            auto deployment = m_strategy.get_deployment_id();
-            auto baseline_result = m_store.find_by_path(file_path, deployment);
-
-            if (!baseline_result) {
-                // Error querying database
+            // Verify the file using the extracted method
+            auto verify_result = verify_file(file_path);
+            if (!verify_result) {
+                // Error verifying file - skip it
                 continue;
             }
 
-            if (!baseline_result->has_value()) {
-                // New file (no baseline)
-                FileChange change;
-                change.path = file_path;
-                change.change_type = "new";
-                changes.push_back(change);
-                stats.files_scanned++;
-
-                // Publish FileCreatedEvent
-                auto hash_result = hash_file(file_path, m_algorithm);
-                if (hash_result) {
-                    FileCreatedEvent file_event{
-                        file_path,
-                        *hash_result,
-                        std::nullopt
-                    };
-                    m_event_bus.publish(Event{file_event, EventSeverity::warning, "scanner"});
-                }
-
-                if (progress) {
-                    progress(file_path, stats);
-                }
-                continue;
-            }
-
-            // Compare current state with baseline
-            auto const& baseline = baseline_result->value();
-
-            // Get current metadata
-            auto metadata_result = get_file_metadata(*file_path);
-            if (!metadata_result) {
-                continue;
-            }
-
-            auto const& metadata = *metadata_result;
-
-            // Quick check: size or mtime changed
-            bool needs_hash_check = false;
-
-            if (metadata.size != static_cast<std::uint64_t>(baseline.size)) {
-                needs_hash_check = true;
-            } else if (metadata.mtime_ns != baseline.mtime_ns) {
-                needs_hash_check = true;
-            }
-
-            if (needs_hash_check) {
-                // Calculate hash to verify
-                auto hash_result = hash_file(file_path, m_algorithm);
-                if (!hash_result) {
-                    continue;
-                }
-
-                if (*(*hash_result) != *(baseline.hash_value)) {
-                    FileChange change;
-                    change.path = file_path;
-                    change.change_type = "modified";
-                    change.details = std::format("Hash mismatch: expected {}, got {}",
-                                                   *(baseline.hash_value), *(*hash_result));
-                    changes.push_back(change);
-
-                    // Publish FileModifiedEvent
-                    FileModifiedEvent mod_event{
-                        file_path,
-                        baseline.hash_value,
-                        *hash_result,
-                        *change.details
-                    };
-                    m_event_bus.publish(Event{mod_event, EventSeverity::critical, "scanner"});
-                }
+            if (verify_result->has_value()) {
+                // Change detected
+                changes.push_back(**verify_result);
             }
 
             stats.files_scanned++;

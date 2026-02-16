@@ -68,8 +68,12 @@ namespace vigilant_canine {
     };
 
     struct ScanConfig {
-        std::string schedule{"daily"};
         bool on_boot{true};
+        std::uint32_t interval_hours{24};
+        std::uint32_t batch_size{0};                // 0 = auto-calculate
+        bool adaptive_pacing{true};
+        double battery_slowdown_factor{2.0};
+        std::uint8_t battery_pause_threshold{20};   // Pause below this %
     };
 
     //
