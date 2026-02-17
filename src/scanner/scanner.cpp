@@ -62,7 +62,7 @@ namespace vigilant_canine {
     }
 
     auto Scanner::scan_file(FilePath const& path)
-        -> std::expected<void, std::string> {
+        -> std::expected<StoreOperation, std::string> {
 
         // Get file metadata
         auto metadata_result = get_file_metadata(*path);
@@ -110,20 +110,31 @@ namespace vigilant_canine {
         baseline.deployment = deployment;
 
         if (existing->has_value()) {
+            // Check if baseline actually changed
+            auto const& old_baseline = existing->value();
+            if (old_baseline.hash_value == baseline.hash_value &&
+                old_baseline.size == baseline.size &&
+                old_baseline.mode == baseline.mode &&
+                old_baseline.uid == baseline.uid &&
+                old_baseline.gid == baseline.gid) {
+                // No changes - skip database write
+                return StoreOperation::unchanged;
+            }
+
             // Update existing baseline
             auto update_result = m_store.update(baseline);
             if (!update_result) {
                 return std::unexpected(update_result.error());
             }
+            return StoreOperation::updated;
         } else {
             // Insert new baseline
             auto insert_result = m_store.insert(baseline);
             if (!insert_result) {
                 return std::unexpected(insert_result.error());
             }
+            return StoreOperation::inserted;
         }
-
-        return {};
     }
 
     auto Scanner::scan_directory(std::filesystem::path const& path,
@@ -168,7 +179,18 @@ namespace vigilant_canine {
 
             if (result) {
                 stats.files_scanned++;
-                stats.files_added++;  // TODO: Track updates vs new files
+                // Track operation type
+                switch (*result) {
+                    case StoreOperation::inserted:
+                        stats.files_added++;
+                        break;
+                    case StoreOperation::updated:
+                        stats.files_updated++;
+                        break;
+                    case StoreOperation::unchanged:
+                        stats.files_unchanged++;
+                        break;
+                }
             } else {
                 stats.errors++;
             }

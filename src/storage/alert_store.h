@@ -52,6 +52,16 @@ namespace vigilant_canine {
     };
 
     //
+    // Filter criteria for alert queries.
+    //
+    struct AlertFilter {
+        std::optional<AlertSeverity> severity;
+        std::optional<bool> acknowledged;
+        std::optional<std::string> category;
+        std::optional<std::int64_t> since_id;  // Alerts with ID >= this
+    };
+
+    //
     // Storage interface for alerts.
     //
     class AlertStore {
@@ -85,6 +95,18 @@ namespace vigilant_canine {
         //
         [[nodiscard]] auto get_unacknowledged()
             -> std::expected<std::vector<Alert>, std::string>;
+
+        //
+        // Get filtered alerts with pagination.
+        //
+        // Returns alerts matching the filter criteria, ordered by ID descending (most recent first).
+        // Use limit/offset for pagination.
+        //
+        [[nodiscard]] auto get_filtered(
+            AlertFilter const& filter,
+            int limit = 100,
+            int offset = 0
+        ) -> std::expected<std::vector<Alert>, std::string>;
 
         //
         // Acknowledge an alert by id.

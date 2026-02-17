@@ -309,4 +309,118 @@ namespace vigilant_canine {
         return {};
     }
 
+    auto AlertStore::get_filtered(
+        AlertFilter const& filter,
+        int limit,
+        int offset
+    ) -> std::expected<std::vector<Alert>, std::string> {
+
+        // Build SQL query with optional WHERE clauses
+        std::string sql = R"(
+            SELECT id, severity, category, path, summary, details, source, acknowledged
+            FROM alerts
+            WHERE 1=1
+        )";
+
+        std::vector<std::string> conditions;
+
+        if (filter.severity.has_value()) {
+            conditions.push_back("severity = ?");
+        }
+
+        if (filter.acknowledged.has_value()) {
+            conditions.push_back("acknowledged = ?");
+        }
+
+        if (filter.category.has_value()) {
+            conditions.push_back("category = ?");
+        }
+
+        if (filter.since_id.has_value()) {
+            conditions.push_back("id >= ?");
+        }
+
+        // Add conditions to SQL
+        for (auto const& condition : conditions) {
+            sql += " AND " + condition;
+        }
+
+        sql += " ORDER BY id DESC LIMIT ? OFFSET ?";
+
+        auto stmt_result = m_db.prepare(sql);
+        if (!stmt_result) {
+            return std::unexpected(stmt_result.error());
+        }
+
+        sqlite3_stmt* stmt = *stmt_result;
+        int bind_index = 1;
+
+        // Bind filter parameters
+        if (filter.severity.has_value()) {
+            std::string severity_str = to_string(*filter.severity);
+            sqlite3_bind_text(stmt, bind_index++, severity_str.c_str(), -1, SQLITE_TRANSIENT);
+        }
+
+        if (filter.acknowledged.has_value()) {
+            sqlite3_bind_int(stmt, bind_index++, *filter.acknowledged ? 1 : 0);
+        }
+
+        if (filter.category.has_value()) {
+            sqlite3_bind_text(stmt, bind_index++, filter.category->c_str(), -1, SQLITE_TRANSIENT);
+        }
+
+        if (filter.since_id.has_value()) {
+            sqlite3_bind_int64(stmt, bind_index++, *filter.since_id);
+        }
+
+        // Bind limit and offset
+        sqlite3_bind_int(stmt, bind_index++, limit);
+        sqlite3_bind_int(stmt, bind_index++, offset);
+
+        // Execute and collect results
+        std::vector<Alert> alerts;
+
+        while (true) {
+            int result_code = sqlite3_step(stmt);
+
+            if (result_code == SQLITE_DONE) {
+                break;
+            }
+
+            if (result_code != SQLITE_ROW) {
+                sqlite3_finalize(stmt);
+                return std::unexpected(std::format("Failed to query filtered alerts: {}",
+                                                    sqlite3_errmsg(m_db.handle())));
+            }
+
+            Alert alert;
+            alert.id = sqlite3_column_int64(stmt, 0);
+
+            auto severity_str = reinterpret_cast<char const*>(sqlite3_column_text(stmt, 1));
+            if (auto sev = parse_severity(severity_str)) {
+                alert.severity = *sev;
+            }
+
+            alert.category = reinterpret_cast<char const*>(sqlite3_column_text(stmt, 2));
+
+            if (sqlite3_column_type(stmt, 3) != SQLITE_NULL) {
+                alert.path = FilePath{reinterpret_cast<char const*>(sqlite3_column_text(stmt, 3))};
+            }
+
+            alert.summary = reinterpret_cast<char const*>(sqlite3_column_text(stmt, 4));
+
+            if (sqlite3_column_type(stmt, 5) != SQLITE_NULL) {
+                alert.details = reinterpret_cast<char const*>(sqlite3_column_text(stmt, 5));
+            }
+
+            alert.source = reinterpret_cast<char const*>(sqlite3_column_text(stmt, 6));
+            alert.acknowledged = sqlite3_column_int(stmt, 7) != 0;
+
+            alerts.push_back(std::move(alert));
+        }
+
+        sqlite3_finalize(stmt);
+        return alerts;
+    }
+
 }  // namespace vigilant_canine
