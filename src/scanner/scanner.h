@@ -22,6 +22,15 @@
 namespace vigilant_canine {
 
     //
+    // Result of a baseline store operation.
+    //
+    enum class StoreOperation : std::uint8_t {
+        inserted,   // New baseline created
+        updated,    // Existing baseline updated
+        unchanged   // Baseline already matches (no database write needed)
+    };
+
+    //
     // File metadata for baseline comparison.
     //
     struct FileMetadata {
@@ -117,7 +126,7 @@ namespace vigilant_canine {
         // Scan a single file and create/update baseline.
         //
         [[nodiscard]] auto scan_file(FilePath const& path)
-            -> std::expected<void, std::string>;
+            -> std::expected<StoreOperation, std::string>;
 
         //
         // Scan directory tree for a specific user with custom source.

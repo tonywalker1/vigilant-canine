@@ -50,9 +50,56 @@ void AlertHandler::handle_list(const httplib::Request& req, httplib::Response& r
         }
     }
 
-    // For Phase 2, we'll implement basic filtering
-    // TODO: Add severity, acknowledged, category filters in later phases
-    auto result = store_.get_recent(limit + offset);
+    // Build filter from query parameters
+    AlertFilter filter;
+
+    // Parse severity filter
+    if (req.has_param("severity")) {
+        std::string severity_str = req.get_param_value("severity");
+        auto severity_opt = parse_severity(severity_str);
+        if (!severity_opt) {
+            res.status = 400;
+            res.set_content(json::error_response("INVALID_PARAMETER",
+                "severity must be 'INFO', 'WARNING', or 'CRITICAL'"), "application/json");
+            return;
+        }
+        filter.severity = *severity_opt;
+    }
+
+    // Parse acknowledged filter
+    if (req.has_param("acknowledged")) {
+        std::string ack_str = req.get_param_value("acknowledged");
+        if (ack_str == "true") {
+            filter.acknowledged = true;
+        } else if (ack_str == "false") {
+            filter.acknowledged = false;
+        } else {
+            res.status = 400;
+            res.set_content(json::error_response("INVALID_PARAMETER",
+                "acknowledged must be 'true' or 'false'"), "application/json");
+            return;
+        }
+    }
+
+    // Parse category filter
+    if (req.has_param("category")) {
+        filter.category = req.get_param_value("category");
+    }
+
+    // Parse since_id filter
+    if (req.has_param("since_id")) {
+        try {
+            filter.since_id = std::stoll(req.get_param_value("since_id"));
+        } catch (...) {
+            res.status = 400;
+            res.set_content(json::error_response("INVALID_PARAMETER",
+                "Invalid since_id value"), "application/json");
+            return;
+        }
+    }
+
+    // Query with filter
+    auto result = store_.get_filtered(filter, limit, offset);
 
     if (!result) {
         res.status = 500;
@@ -61,20 +108,12 @@ void AlertHandler::handle_list(const httplib::Request& req, httplib::Response& r
         return;
     }
 
-    // Apply offset (simple approach for Phase 2)
-    std::vector<Alert> alerts;
-    auto& all_alerts = *result;
-    if (offset < static_cast<int>(all_alerts.size())) {
-        auto start = all_alerts.begin() + offset;
-        auto end = all_alerts.begin() + std::min(offset + limit,
-                                                  static_cast<int>(all_alerts.size()));
-        alerts.assign(start, end);
-    }
+    auto const& alerts = *result;
 
-    // Serialize response
+    // Serialize response (total is approximate for filtered results)
     std::string alerts_json = json::to_json(alerts);
     std::string response = json::paginated_response(alerts_json, "alerts",
-                                                    all_alerts.size(), limit, offset);
+                                                    alerts.size(), limit, offset);
 
     res.status = 200;
     res.set_content(response, "application/json");

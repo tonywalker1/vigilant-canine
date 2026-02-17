@@ -7,6 +7,9 @@
 
 #include <daemon/daemon.h>
 
+#include <audit/audit_rule.h>
+#include <journal/journal_rule.h>
+
 #include <systemd/sd-journal.h>
 
 #include <csignal>
@@ -42,6 +45,167 @@ namespace vigilant_canine {
             }
         }
     }
+
+    // Helper functions for rule conversion and merging
+    namespace {
+        //
+        // Convert JournalMatchType string to enum.
+        //
+        auto parse_journal_match_type(std::string const& type) -> JournalMatchType {
+            if (type == "exact") return JournalMatchType::exact;
+            if (type == "regex") return JournalMatchType::regex;
+            if (type == "starts_with") return JournalMatchType::starts_with;
+            return JournalMatchType::contains;  // default
+        }
+
+        //
+        // Convert JournalRuleAction string to enum.
+        //
+        auto parse_journal_action(std::string const& action) -> JournalRuleAction {
+            if (action == "auth_failure") return JournalRuleAction::auth_failure;
+            if (action == "privilege_escalation") return JournalRuleAction::privilege_escalation;
+            if (action == "service_state") return JournalRuleAction::service_state;
+            return JournalRuleAction::suspicious_log;  // default
+        }
+
+        //
+        // Convert severity string to EventSeverity enum.
+        //
+        auto parse_severity(std::string const& severity) -> EventSeverity {
+            if (severity == "info") return EventSeverity::info;
+            if (severity == "critical") return EventSeverity::critical;
+            return EventSeverity::warning;  // default
+        }
+
+        //
+        // Convert JournalRuleConfig to JournalRule.
+        //
+        auto convert_journal_rule(JournalRuleConfig const& config) -> JournalRule {
+            JournalRule rule;
+            rule.name = config.name;
+            rule.description = config.description;
+            rule.action = parse_journal_action(config.action);
+            rule.severity = parse_severity(config.severity);
+            rule.enabled = config.enabled;
+
+            // Convert field matches
+            for (auto const& match_config : config.match) {
+                JournalFieldMatch match;
+                match.field_name = match_config.field;
+                match.pattern = match_config.pattern;
+                match.match_type = parse_journal_match_type(match_config.type);
+                match.negate = match_config.negate;
+
+                // Compile regex if needed
+                if (match.match_type == JournalMatchType::regex) {
+                    try {
+                        match.compiled_regex = std::regex(match.pattern);
+                    } catch (std::regex_error const& e) {
+                        sd_journal_print(LOG_WARNING,
+                            "vigilant-canined: Invalid regex in journal rule %s: %s",
+                            config.name.c_str(), e.what());
+                        // Skip this match - it won't work
+                        continue;
+                    }
+                }
+
+                rule.field_matches.push_back(std::move(match));
+            }
+
+            return rule;
+        }
+
+        //
+        // Merge custom journal rules with defaults.
+        //
+        auto merge_journal_rules(
+            std::vector<JournalRule> defaults,
+            std::vector<JournalRuleConfig> const& custom_configs
+        ) -> std::vector<JournalRule> {
+            // Add custom rules after defaults
+            for (auto const& config : custom_configs) {
+                defaults.push_back(convert_journal_rule(config));
+            }
+            return defaults;
+        }
+
+        //
+        // Convert AuditMatchType string to enum.
+        //
+        auto parse_audit_match_type(std::string const& type) -> AuditMatchType {
+            if (type == "exact") return AuditMatchType::exact;
+            if (type == "regex") return AuditMatchType::regex;
+            if (type == "starts_with") return AuditMatchType::starts_with;
+            if (type == "numeric_eq") return AuditMatchType::numeric_eq;
+            if (type == "numeric_gt") return AuditMatchType::numeric_gt;
+            if (type == "numeric_lt") return AuditMatchType::numeric_lt;
+            return AuditMatchType::contains;  // default
+        }
+
+        //
+        // Convert AuditRuleAction string to enum.
+        //
+        auto parse_audit_action(std::string const& action) -> AuditRuleAction {
+            if (action == "process_execution") return AuditRuleAction::process_execution;
+            if (action == "network_connection") return AuditRuleAction::network_connection;
+            if (action == "failed_access") return AuditRuleAction::failed_access;
+            if (action == "privilege_change") return AuditRuleAction::privilege_change;
+            return AuditRuleAction::suspicious_syscall;  // default
+        }
+
+        //
+        // Convert AuditRuleConfig to AuditRule.
+        //
+        auto convert_audit_rule(AuditRuleConfig const& config) -> AuditRule {
+            AuditRule rule;
+            rule.name = config.name;
+            rule.description = config.description;
+            rule.action = parse_audit_action(config.action);
+            rule.severity = parse_severity(config.severity);
+            rule.enabled = config.enabled;
+            rule.syscall_filter = config.syscall_filter;
+
+            // Convert field matches
+            for (auto const& match_config : config.match) {
+                AuditFieldMatch match;
+                match.field_name = match_config.field;
+                match.pattern = match_config.pattern;
+                match.match_type = parse_audit_match_type(match_config.type);
+                match.negate = match_config.negate;
+
+                // Compile regex if needed
+                if (match.match_type == AuditMatchType::regex) {
+                    try {
+                        match.compiled_regex = std::regex(match.pattern);
+                    } catch (std::regex_error const& e) {
+                        sd_journal_print(LOG_WARNING,
+                            "vigilant-canined: Invalid regex in audit rule %s: %s",
+                            config.name.c_str(), e.what());
+                        // Skip this match - it won't work
+                        continue;
+                    }
+                }
+
+                rule.field_matches.push_back(std::move(match));
+            }
+
+            return rule;
+        }
+
+        //
+        // Merge custom audit rules with defaults.
+        //
+        auto merge_audit_rules(
+            std::vector<AuditRule> defaults,
+            std::vector<AuditRuleConfig> const& custom_configs
+        ) -> std::vector<AuditRule> {
+            // Add custom rules after defaults
+            for (auto const& config : custom_configs) {
+                defaults.push_back(convert_audit_rule(config));
+            }
+            return defaults;
+        }
+    }  // anonymous namespace
 
     Daemon::Daemon(std::filesystem::path config_path)
         : m_config_path(std::move(config_path)) {
@@ -116,20 +280,94 @@ namespace vigilant_canine {
                                                                  *m_event_bus,
                                                                  m_config.hash.algorithm);
 
+        // Phase 2: Create D-Bus notifier
+        m_dbus_notifier = std::make_unique<DbusNotifier>();
+        auto dbus_init_result = m_dbus_notifier->initialize();
+        if (!dbus_init_result) {
+            sd_journal_print(LOG_WARNING,
+                "vigilant-canined: D-Bus notifications unavailable: %s",
+                dbus_init_result.error().c_str());
+            // Continue anyway - desktop notifications are optional
+        }
+
         // Create alert dispatcher
         AlertDispatcherConfig dispatch_config;
         dispatch_config.log_to_journal = m_config.alerts.journal;
         dispatch_config.send_dbus = m_config.alerts.dbus;
 
+        // Pass D-Bus notifier to alert dispatcher if available
+        DbusNotifier* dbus_notifier_ptr = (m_dbus_notifier && m_dbus_notifier->is_available())
+            ? m_dbus_notifier.get()
+            : nullptr;
+
         m_alert_dispatcher = std::make_unique<AlertDispatcher>(*m_event_bus,
                                                                  *m_alert_store,
                                                                  *m_baseline_store,
-                                                                 dispatch_config);
+                                                                 dispatch_config,
+                                                                 dbus_notifier_ptr);
+
+        // Phase 2: Journal monitor
+        if (m_config.journal.enabled) {
+            auto journal_rules = merge_journal_rules(
+                get_default_rules(),
+                m_config.journal.rules
+            );
+
+            JournalMonitorConfig journal_config;
+            journal_config.max_priority = m_config.journal.max_priority;
+            journal_config.exclude_units = m_config.journal.exclude_units;
+            journal_config.exclude_identifiers = m_config.journal.exclude_identifiers;
+
+            m_journal_monitor = std::make_unique<JournalMonitor>(
+                *m_event_bus,
+                std::move(journal_rules),
+                journal_config
+            );
+
+            auto journal_init_result = m_journal_monitor->initialize();
+            if (!journal_init_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Journal monitor initialization failed: %s",
+                    journal_init_result.error().c_str());
+                m_journal_monitor.reset();  // Don't keep unusable monitor
+            }
+        }
+
+        // Phase 2: Correlation engine
+        if (m_config.correlation.enabled) {
+            std::vector<CorrelationRule> correlation_rules;
+            // Convert config rules to CorrelationRule
+            for (auto const& rule_config : m_config.correlation.rules) {
+                CorrelationRule rule;
+                rule.name = rule_config.name;
+                rule.event_match = rule_config.event_match;
+                rule.threshold = rule_config.threshold;
+                rule.window = std::chrono::seconds(rule_config.window_seconds);
+
+                // Parse severity
+                if (rule_config.escalated_severity == "info") {
+                    rule.escalated_severity = EventSeverity::info;
+                } else if (rule_config.escalated_severity == "warning") {
+                    rule.escalated_severity = EventSeverity::warning;
+                } else if (rule_config.escalated_severity == "critical") {
+                    rule.escalated_severity = EventSeverity::critical;
+                }
+
+                correlation_rules.push_back(std::move(rule));
+            }
+
+            m_correlation_engine = std::make_unique<CorrelationEngine>(
+                *m_event_bus,
+                std::move(correlation_rules)
+            );
+        }
 
         // Phase 3: Audit monitor
         if (m_config.audit.enabled) {
-            auto audit_rules = get_default_audit_rules();
-            // TODO: Merge with m_config.audit.rules
+            auto audit_rules = merge_audit_rules(
+                get_default_audit_rules(),
+                m_config.audit.rules
+            );
 
             AuditMonitorConfig audit_config;
             audit_config.sanitize_command_lines = m_config.audit.sanitize_command_lines;
@@ -212,6 +450,30 @@ namespace vigilant_canine {
             }
         }
 
+        // Phase 2: Start journal monitor
+        if (m_journal_monitor) {
+            auto journal_start_result = m_journal_monitor->start();
+            if (!journal_start_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Journal monitor start failed: %s",
+                    journal_start_result.error().c_str());
+            } else {
+                sd_journal_print(LOG_INFO, "vigilant-canined: Journal monitor started");
+            }
+        }
+
+        // Phase 2: Start correlation engine
+        if (m_correlation_engine) {
+            auto correlation_start_result = m_correlation_engine->start();
+            if (!correlation_start_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Correlation engine start failed: %s",
+                    correlation_start_result.error().c_str());
+            } else {
+                sd_journal_print(LOG_INFO, "vigilant-canined: Correlation engine started");
+            }
+        }
+
         // Phase 3: Start audit monitor
         if (m_audit_monitor) {
             auto audit_start_result = m_audit_monitor->start();
@@ -268,6 +530,11 @@ namespace vigilant_canine {
         while (!m_should_stop.load()) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
 
+            // Phase 2: Drain correlation escalated events
+            if (m_correlation_engine) {
+                m_correlation_engine->drain_escalated_events(*m_event_bus);
+            }
+
             if (m_should_reload.load()) {
                 m_should_reload.store(false);
                 auto reload_result = reload_config();
@@ -286,10 +553,16 @@ namespace vigilant_canine {
             m_distributed_scanner->stop();
         }
         m_fanotify_monitor->stop();
-        m_alert_dispatcher->stop();
+        if (m_journal_monitor) {
+            m_journal_monitor->stop();
+        }
+        if (m_correlation_engine) {
+            m_correlation_engine->stop();
+        }
         if (m_audit_monitor) {
             m_audit_monitor->stop();
         }
+        m_alert_dispatcher->stop();
 
         m_running.store(false);
         sd_journal_print(LOG_INFO, "vigilant-canined: Daemon stopped");
@@ -322,10 +595,44 @@ namespace vigilant_canine {
             m_distributed_scanner->update_config(m_config.scan);
         }
 
+        // Phase 2: Hot reload journal rules
+        if (m_journal_monitor && m_config.journal.enabled) {
+            auto journal_rules = merge_journal_rules(
+                get_default_rules(),
+                m_config.journal.rules
+            );
+            m_journal_monitor->update_rules(std::move(journal_rules));
+        }
+
+        // Phase 2: Hot reload correlation rules
+        if (m_correlation_engine && m_config.correlation.enabled) {
+            std::vector<CorrelationRule> correlation_rules;
+            for (auto const& rule_config : m_config.correlation.rules) {
+                CorrelationRule rule;
+                rule.name = rule_config.name;
+                rule.event_match = rule_config.event_match;
+                rule.threshold = rule_config.threshold;
+                rule.window = std::chrono::seconds(rule_config.window_seconds);
+
+                if (rule_config.escalated_severity == "info") {
+                    rule.escalated_severity = EventSeverity::info;
+                } else if (rule_config.escalated_severity == "warning") {
+                    rule.escalated_severity = EventSeverity::warning;
+                } else if (rule_config.escalated_severity == "critical") {
+                    rule.escalated_severity = EventSeverity::critical;
+                }
+
+                correlation_rules.push_back(std::move(rule));
+            }
+            m_correlation_engine->update_rules(std::move(correlation_rules));
+        }
+
         // Phase 3: Hot reload audit rules
         if (m_audit_monitor && m_config.audit.enabled) {
-            auto audit_rules = get_default_audit_rules();
-            // TODO: Merge with m_config.audit.rules
+            auto audit_rules = merge_audit_rules(
+                get_default_audit_rules(),
+                m_config.audit.rules
+            );
             m_audit_monitor->update_rules(std::move(audit_rules));
         }
 

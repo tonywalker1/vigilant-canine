@@ -122,7 +122,20 @@ exclude_identifiers = ["vigilant-canined"]
 # Custom journal rules (beyond the built-in defaults)
 # Built-in rules cover: auth failures, privilege escalation, service failures,
 # kernel errors, OOM events
-# rules = []
+#
+# Example custom rule:
+# [[journal.rules]]
+# name = "docker_container_failed"
+# description = "Docker container failed to start"
+# enabled = true
+# action = "service_state"
+# severity = "warning"
+#
+# [[journal.rules.match]]
+# field = "_SYSTEMD_UNIT"
+# pattern = "docker"
+# type = "contains"
+# negate = false
 
 [correlation]
 # Enable event correlation
@@ -156,7 +169,21 @@ exclude_uids = []
 # Custom audit rules (beyond the built-in defaults)
 # Built-in rules cover: privilege escalation, sensitive file access,
 # suspicious network connections, kernel module loading
-# rules = []
+#
+# Example custom rule:
+# [[audit.rules]]
+# name = "sensitive_dir_access"
+# description = "Access to sensitive directory"
+# enabled = true
+# action = "failed_access"
+# severity = "warning"
+# syscall_filter = 0  # 0 = no filter
+#
+# [[audit.rules.match]]
+# field = "name"
+# pattern = "/opt/secrets"
+# type = "starts_with"
+# negate = false
 
 [policy.home]
 # Force monitoring for specific users (cannot opt out)
