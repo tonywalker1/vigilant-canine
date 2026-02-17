@@ -62,8 +62,11 @@ Retrieve a paginated list of security alerts.
 
 **Query Parameters:**
 - `limit` (optional, default=100) - Maximum number of alerts to return (1-1000)
-- `offset` (optional, default=0) - Number of alerts to skip
-- `acknowledged` (optional) - Filter by acknowledgment status: `true`, `false`, or omit for all
+- `offset` (optional, default=0) - Number of alerts to skip for pagination
+- `severity` (optional) - Filter by severity level: `INFO`, `WARNING`, or `CRITICAL`
+- `acknowledged` (optional) - Filter by acknowledgment status: `true` or `false`
+- `category` (optional) - Filter by event category (e.g., `file_integrity`, `log_analysis`, `audit`)
+- `since_id` (optional) - Return only alerts with ID >= this value
 
 **Response:**
 ```json
@@ -71,7 +74,7 @@ Retrieve a paginated list of security alerts.
   "alerts": [
     {
       "id": 1,
-      "severity": "high",
+      "severity": "WARNING",
       "category": "file_integrity",
       "path": "/etc/passwd",
       "summary": "Unauthorized modification detected",
@@ -88,13 +91,22 @@ Retrieve a paginated list of security alerts.
 
 **Status Codes:**
 - `200 OK` - Success
-- `400 Bad Request` - Invalid parameters
+- `400 Bad Request` - Invalid parameters (invalid severity, malformed acknowledged value, etc.)
 - `500 Internal Server Error` - Database error
 
-**Example:**
+**Examples:**
 ```bash
+# Get unacknowledged critical alerts
 curl --unix-socket /run/vigilant-canine/api.sock \
-    'http://localhost/api/v1/alerts?limit=20&acknowledged=false'
+    'http://localhost/api/v1/alerts?severity=CRITICAL&acknowledged=false'
+
+# Get file integrity alerts only
+curl --unix-socket /run/vigilant-canine/api.sock \
+    'http://localhost/api/v1/alerts?category=file_integrity&limit=50'
+
+# Poll for new alerts since last check
+curl --unix-socket /run/vigilant-canine/api.sock \
+    'http://localhost/api/v1/alerts?since_id=100&limit=20'
 ```
 
 ---

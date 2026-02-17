@@ -300,7 +300,146 @@ Monitor security events from the Linux audit subsystem for deeper visibility int
 
 **Multi-record Correlation:** The audit monitor automatically correlates related audit records (SYSCALL + EXECVE + CWD + PATH) within 100ms windows to provide complete event context.
 
-Custom rules can be added via `[[audit.rules]]` sections with similar syntax to journal rules.
+Custom rules can be added via `[[audit.rules]]` sections (see Custom Detection Rules below).
+
+## Custom Detection Rules
+
+Vigilant Canine supports user-defined detection rules for both journal log analysis and audit subsystem events. Custom rules are defined in the config file and merged with built-in defaults.
+
+### Journal Rule Syntax
+
+Journal rules match against systemd journal fields using various match types:
+
+```toml
+[[journal.rules]]
+name = "docker_container_failed"           # Unique rule identifier
+description = "Docker container failed"    # Human-readable description
+enabled = true                             # Enable/disable this rule
+action = "service_state"                   # Action type (see below)
+severity = "warning"                       # Severity level (info/warning/critical)
+
+[[journal.rules.match]]
+field = "_SYSTEMD_UNIT"                    # Journal field to match
+pattern = "docker"                         # Pattern to search for
+type = "contains"                          # Match type (see below)
+negate = false                             # Invert match (true = does NOT match)
+```
+
+**Match Types:**
+- `exact` - Exact string match (case-sensitive)
+- `contains` - Substring match
+- `regex` - Regular expression match (uses std::regex syntax)
+- `starts_with` - Prefix match
+
+**Actions (determines event category):**
+- `auth_failure` - Authentication/authorization failure
+- `privilege_escalation` - Attempt to gain elevated privileges
+- `service_state` - Service state change (start/stop/fail)
+- `suspicious_log` - Generic suspicious log entry
+
+**Severities:**
+- `info` - Informational, low priority
+- `warning` - Potential issue, deserves attention
+- `critical` - Serious issue, immediate attention required
+
+**Multiple Match Conditions:**
+
+A rule can have multiple `[[journal.rules.match]]` sections - ALL conditions must match (AND logic):
+
+```toml
+[[journal.rules]]
+name = "ssh_failed_root"
+description = "Failed SSH login as root"
+enabled = true
+action = "auth_failure"
+severity = "critical"
+
+[[journal.rules.match]]
+field = "SYSLOG_IDENTIFIER"
+pattern = "sshd"
+type = "exact"
+
+[[journal.rules.match]]
+field = "MESSAGE"
+pattern = "Failed password for root"
+type = "contains"
+```
+
+**Common Journal Fields:**
+- `MESSAGE` - The main log message text
+- `PRIORITY` - Numeric priority (0-7)
+- `SYSLOG_IDENTIFIER` - Program name
+- `_SYSTEMD_UNIT` - systemd unit name
+- `_COMM` - Command name
+- `_PID` - Process ID
+
+See `man systemd.journal-fields` for complete field reference.
+
+### Audit Rule Syntax
+
+Audit rules match against Linux audit event fields:
+
+```toml
+[[audit.rules]]
+name = "secrets_directory_access"          # Unique rule identifier
+description = "Access to secrets dir"      # Human-readable description
+enabled = true                             # Enable/disable this rule
+action = "failed_access"                   # Action type (see below)
+severity = "warning"                       # Severity level
+syscall_filter = 0                         # Syscall number (0 = any)
+
+[[audit.rules.match]]
+field = "name"                             # Audit field to match
+pattern = "/opt/secrets"                   # Pattern to search for
+type = "starts_with"                       # Match type
+negate = false                             # Invert match
+```
+
+**Match Types:**
+- `exact` - Exact string match
+- `contains` - Substring match
+- `regex` - Regular expression match
+- `starts_with` - Prefix match
+- `numeric_eq` - Numeric equality (field == value)
+- `numeric_gt` - Numeric greater-than (field > value)
+- `numeric_lt` - Numeric less-than (field < value)
+
+**Actions (determines event type):**
+- `process_execution` - Process/program execution
+- `network_connection` - Network socket connection
+- `failed_access` - Access denied to file/resource
+- `privilege_change` - UID/GID/capability change
+- `suspicious_syscall` - Unusual system call pattern
+
+**Common Audit Fields:**
+- `name` - File path
+- `comm` - Command name
+- `exe` - Executable path
+- `uid` - User ID (numeric)
+- `auid` - Audit user ID (login UID)
+- `success` - Success/failure flag (`yes`/`no`)
+- `syscall` - System call number
+
+**Syscall Filtering:**
+
+Set `syscall_filter` to a specific syscall number to only match that syscall:
+
+```toml
+[[audit.rules]]
+name = "execve_monitoring"
+description = "Monitor all process executions"
+syscall_filter = 59  # execve syscall on x86_64
+# ...
+```
+
+Use `syscall_filter = 0` (default) to match any syscall.
+
+### Rule Ordering and Precedence
+
+- Custom rules are evaluated AFTER built-in default rules
+- Rules are evaluated in the order they appear in the config file
+- First matching rule determines the action and severity
+- Use `enabled = false` to disable specific rules without removing them
 
 ## Example Configurations
 

@@ -37,21 +37,23 @@ See [docs/architecture.md](docs/architecture.md) for full details and rationale.
 
 # Status
 
-**Phase 3 Complete:** Full-featured host IDS with file integrity, log analysis, and audit monitoring.
+**v1.0 Feature-Complete:** Full-featured host IDS with file integrity, log analysis, and audit monitoring.
 
 - ✅ **Phase 1**: File integrity monitoring via fanotify
 - ✅ **Phase 1**: Package verification (rpm/dpkg)
 - ✅ **Phase 1**: SQLite storage and TOML configuration
-- ✅ **Phase 2**: Log analysis via systemd journal
+- ✅ **Phase 2**: Log analysis via systemd journal with custom rule support
 - ✅ **Phase 2**: Event correlation engine with time-windowed aggregation
 - ✅ **Phase 2**: Desktop notifications via D-Bus (freedesktop spec)
-- ✅ **Phase 3**: Linux audit subsystem integration (libaudit/libauparse)
+- ✅ **Phase 3**: Linux audit subsystem integration with custom rule support
 - ✅ **Phase 3**: Process execution tracking and user attribution
 - ✅ **Phase 3**: Multi-record event correlation with command-line sanitization
 - ✅ **systemd integration**: Service files and installation support
-- ✅ **API daemon**: REST API over Unix socket for querying alerts and events
+- ✅ **API daemon**: REST API over Unix socket with advanced filtering
 - ✅ **User home directory monitoring**: Opt-in monitoring for user-installed software with policy enforcement
-- ⏳ **Web dashboard**: Static frontend (planned, not required for core functionality)
+- ✅ **Custom detection rules**: User-configurable journal and audit rules via TOML config
+- ✅ **Enhanced observability**: Detailed scanner statistics and alert filtering
+- ⏳ **Web dashboard**: Static frontend (optional, not required for core functionality)
 
 # Installation
 
@@ -210,6 +212,58 @@ A testing script is provided for manual verification:
 ```
 
 **Note:** The core monitoring daemon is feature-complete with file integrity monitoring, log analysis, and audit subsystem integration. The API daemon provides optional query capabilities for external tools and dashboards. A web dashboard frontend is planned for future releases.
+
+## Custom Detection Rules
+
+Vigilant Canine supports user-defined detection rules for both journal log analysis and audit subsystem events. Custom rules are defined in `/etc/vigilant-canine/config.toml` and are merged with the built-in default rules.
+
+### Journal Rules
+
+Add custom log pattern matching rules to detect application-specific events:
+
+```toml
+[[journal.rules]]
+name = "docker_container_failed"
+description = "Docker container failed to start"
+enabled = true
+action = "service_state"
+severity = "warning"
+
+[[journal.rules.match]]
+field = "_SYSTEMD_UNIT"
+pattern = "docker"
+type = "contains"
+negate = false
+```
+
+**Match types**: `exact`, `contains`, `regex`, `starts_with`
+**Actions**: `auth_failure`, `privilege_escalation`, `service_state`, `suspicious_log`
+**Severities**: `info`, `warning`, `critical`
+
+### Audit Rules
+
+Add custom syscall and file access detection rules:
+
+```toml
+[[audit.rules]]
+name = "sensitive_dir_access"
+description = "Access to sensitive directory"
+enabled = true
+action = "failed_access"
+severity = "warning"
+syscall_filter = 0  # 0 = no filter
+
+[[audit.rules.match]]
+field = "name"
+pattern = "/opt/secrets"
+type = "starts_with"
+negate = false
+```
+
+**Match types**: `exact`, `contains`, `regex`, `starts_with`, `numeric_eq`, `numeric_gt`, `numeric_lt`
+**Actions**: `process_execution`, `network_connection`, `failed_access`, `privilege_change`, `suspicious_syscall`
+
+See `config/vigilant-canine.toml.example` for complete examples and `docs/configuration.md` for detailed rule syntax.
 
 ## Initial Setup
 
