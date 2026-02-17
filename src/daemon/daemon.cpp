@@ -7,6 +7,9 @@
 
 #include <daemon/daemon.h>
 
+#include <audit/audit_rule.h>
+#include <journal/journal_rule.h>
+
 #include <systemd/sd-journal.h>
 
 #include <csignal>
@@ -116,15 +119,85 @@ namespace vigilant_canine {
                                                                  *m_event_bus,
                                                                  m_config.hash.algorithm);
 
+        // Phase 2: Create D-Bus notifier
+        m_dbus_notifier = std::make_unique<DbusNotifier>();
+        auto dbus_init_result = m_dbus_notifier->initialize();
+        if (!dbus_init_result) {
+            sd_journal_print(LOG_WARNING,
+                "vigilant-canined: D-Bus notifications unavailable: %s",
+                dbus_init_result.error().c_str());
+            // Continue anyway - desktop notifications are optional
+        }
+
         // Create alert dispatcher
         AlertDispatcherConfig dispatch_config;
         dispatch_config.log_to_journal = m_config.alerts.journal;
         dispatch_config.send_dbus = m_config.alerts.dbus;
 
+        // Pass D-Bus notifier to alert dispatcher if available
+        DbusNotifier* dbus_notifier_ptr = (m_dbus_notifier && m_dbus_notifier->is_available())
+            ? m_dbus_notifier.get()
+            : nullptr;
+
         m_alert_dispatcher = std::make_unique<AlertDispatcher>(*m_event_bus,
                                                                  *m_alert_store,
                                                                  *m_baseline_store,
-                                                                 dispatch_config);
+                                                                 dispatch_config,
+                                                                 dbus_notifier_ptr);
+
+        // Phase 2: Journal monitor
+        if (m_config.journal.enabled) {
+            auto journal_rules = get_default_rules();
+            // TODO: Merge with m_config.journal.rules
+
+            JournalMonitorConfig journal_config;
+            journal_config.max_priority = m_config.journal.max_priority;
+            journal_config.exclude_units = m_config.journal.exclude_units;
+            journal_config.exclude_identifiers = m_config.journal.exclude_identifiers;
+
+            m_journal_monitor = std::make_unique<JournalMonitor>(
+                *m_event_bus,
+                std::move(journal_rules),
+                journal_config
+            );
+
+            auto journal_init_result = m_journal_monitor->initialize();
+            if (!journal_init_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Journal monitor initialization failed: %s",
+                    journal_init_result.error().c_str());
+                m_journal_monitor.reset();  // Don't keep unusable monitor
+            }
+        }
+
+        // Phase 2: Correlation engine
+        if (m_config.correlation.enabled) {
+            std::vector<CorrelationRule> correlation_rules;
+            // Convert config rules to CorrelationRule
+            for (auto const& rule_config : m_config.correlation.rules) {
+                CorrelationRule rule;
+                rule.name = rule_config.name;
+                rule.event_match = rule_config.event_match;
+                rule.threshold = rule_config.threshold;
+                rule.window = std::chrono::seconds(rule_config.window_seconds);
+
+                // Parse severity
+                if (rule_config.escalated_severity == "info") {
+                    rule.escalated_severity = EventSeverity::info;
+                } else if (rule_config.escalated_severity == "warning") {
+                    rule.escalated_severity = EventSeverity::warning;
+                } else if (rule_config.escalated_severity == "critical") {
+                    rule.escalated_severity = EventSeverity::critical;
+                }
+
+                correlation_rules.push_back(std::move(rule));
+            }
+
+            m_correlation_engine = std::make_unique<CorrelationEngine>(
+                *m_event_bus,
+                std::move(correlation_rules)
+            );
+        }
 
         // Phase 3: Audit monitor
         if (m_config.audit.enabled) {
@@ -212,6 +285,30 @@ namespace vigilant_canine {
             }
         }
 
+        // Phase 2: Start journal monitor
+        if (m_journal_monitor) {
+            auto journal_start_result = m_journal_monitor->start();
+            if (!journal_start_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Journal monitor start failed: %s",
+                    journal_start_result.error().c_str());
+            } else {
+                sd_journal_print(LOG_INFO, "vigilant-canined: Journal monitor started");
+            }
+        }
+
+        // Phase 2: Start correlation engine
+        if (m_correlation_engine) {
+            auto correlation_start_result = m_correlation_engine->start();
+            if (!correlation_start_result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Correlation engine start failed: %s",
+                    correlation_start_result.error().c_str());
+            } else {
+                sd_journal_print(LOG_INFO, "vigilant-canined: Correlation engine started");
+            }
+        }
+
         // Phase 3: Start audit monitor
         if (m_audit_monitor) {
             auto audit_start_result = m_audit_monitor->start();
@@ -268,6 +365,11 @@ namespace vigilant_canine {
         while (!m_should_stop.load()) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
 
+            // Phase 2: Drain correlation escalated events
+            if (m_correlation_engine) {
+                m_correlation_engine->drain_escalated_events(*m_event_bus);
+            }
+
             if (m_should_reload.load()) {
                 m_should_reload.store(false);
                 auto reload_result = reload_config();
@@ -286,10 +388,16 @@ namespace vigilant_canine {
             m_distributed_scanner->stop();
         }
         m_fanotify_monitor->stop();
-        m_alert_dispatcher->stop();
+        if (m_journal_monitor) {
+            m_journal_monitor->stop();
+        }
+        if (m_correlation_engine) {
+            m_correlation_engine->stop();
+        }
         if (m_audit_monitor) {
             m_audit_monitor->stop();
         }
+        m_alert_dispatcher->stop();
 
         m_running.store(false);
         sd_journal_print(LOG_INFO, "vigilant-canined: Daemon stopped");
@@ -320,6 +428,36 @@ namespace vigilant_canine {
         // Update distributed scanner config
         if (m_distributed_scanner) {
             m_distributed_scanner->update_config(m_config.scan);
+        }
+
+        // Phase 2: Hot reload journal rules
+        if (m_journal_monitor && m_config.journal.enabled) {
+            auto journal_rules = get_default_rules();
+            // TODO: Merge with m_config.journal.rules
+            m_journal_monitor->update_rules(std::move(journal_rules));
+        }
+
+        // Phase 2: Hot reload correlation rules
+        if (m_correlation_engine && m_config.correlation.enabled) {
+            std::vector<CorrelationRule> correlation_rules;
+            for (auto const& rule_config : m_config.correlation.rules) {
+                CorrelationRule rule;
+                rule.name = rule_config.name;
+                rule.event_match = rule_config.event_match;
+                rule.threshold = rule_config.threshold;
+                rule.window = std::chrono::seconds(rule_config.window_seconds);
+
+                if (rule_config.escalated_severity == "info") {
+                    rule.escalated_severity = EventSeverity::info;
+                } else if (rule_config.escalated_severity == "warning") {
+                    rule.escalated_severity = EventSeverity::warning;
+                } else if (rule_config.escalated_severity == "critical") {
+                    rule.escalated_severity = EventSeverity::critical;
+                }
+
+                correlation_rules.push_back(std::move(rule));
+            }
+            m_correlation_engine->update_rules(std::move(correlation_rules));
         }
 
         // Phase 3: Hot reload audit rules
