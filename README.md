@@ -53,6 +53,7 @@ See [docs/architecture.md](docs/architecture.md) for full details and rationale.
 - ✅ **User home directory monitoring**: Opt-in monitoring for user-installed software with policy enforcement
 - ✅ **Custom detection rules**: User-configurable journal and audit rules via TOML config
 - ✅ **Enhanced observability**: Detailed scanner statistics and alert filtering
+- ✅ **Database retention**: Automatic cleanup with configurable retention periods to prevent unbounded growth
 - ⏳ **Web dashboard**: Static frontend (optional, not required for core functionality)
 
 # Installation

@@ -26,9 +26,12 @@
 #include <storage/audit_event_store.h>
 #include <storage/baseline_store.h>
 #include <storage/database.h>
+#include <storage/journal_event_store.h>
+#include <storage/scan_store.h>
 #include <user/user_manager.h>
 
 #include <atomic>
+#include <chrono>
 #include <expected>
 #include <filesystem>
 #include <memory>
@@ -131,6 +134,14 @@ namespace vigilant_canine {
         [[nodiscard]] auto scan_user_baselines()
             -> std::expected<void, std::string>;
 
+        //
+        // Run database retention cleanup.
+        //
+        // Prunes old records from all tables based on retention configuration.
+        // Logs warnings on failure but continues (non-fatal).
+        //
+        void run_retention_cleanup();
+
         std::filesystem::path m_config_path;
         Config m_config;
         DistroInfo m_distro;
@@ -139,6 +150,8 @@ namespace vigilant_canine {
         std::unique_ptr<Database> m_database;
         std::unique_ptr<BaselineStore> m_baseline_store;
         std::unique_ptr<AlertStore> m_alert_store;
+        std::unique_ptr<JournalEventStore> m_journal_event_store;
+        std::unique_ptr<ScanStore> m_scan_store;
 
         // Event system
         std::unique_ptr<EventBus> m_event_bus;
@@ -171,6 +184,9 @@ namespace vigilant_canine {
         std::atomic<bool> m_running{false};
         std::atomic<bool> m_should_stop{false};
         std::atomic<bool> m_should_reload{false};
+
+        // Retention cleanup state
+        std::chrono::system_clock::time_point m_last_retention_cleanup;
     };
 
 }  // namespace vigilant_canine

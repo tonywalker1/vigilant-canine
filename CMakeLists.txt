@@ -81,6 +81,8 @@ add_executable(vigilant-canined
     src/audit/audit_parsing.cpp
     src/audit/audit_monitor.cpp
     src/storage/audit_event_store.cpp
+    src/storage/journal_event_store.cpp
+    src/storage/scan_store.cpp
     # User monitoring
     src/user/user_manager.cpp
 )
@@ -123,6 +125,7 @@ add_executable(vigilant-canined-api
     src/storage/baseline_store.cpp
     src/storage/alert_store.cpp
     src/storage/audit_event_store.cpp
+    src/storage/journal_event_store.cpp
     src/config/config.cpp
     src/core/hash.cpp
     src/events/event.cpp

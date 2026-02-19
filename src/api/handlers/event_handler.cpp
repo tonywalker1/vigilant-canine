@@ -4,12 +4,10 @@
 #include "event_handler.h"
 #include "../serialization/json.h"
 
-#include <sqlite3.h>
-
 namespace vigilant_canine::api {
 
-EventHandler::EventHandler(Database& db, AuditEventStore& audit_store)
-    : db_(db), audit_store_(audit_store) {}
+EventHandler::EventHandler(JournalEventStore& journal_store, AuditEventStore& audit_store)
+    : journal_store_(journal_store), audit_store_(audit_store) {}
 
 void EventHandler::handle_journal_events(const httplib::Request& req, httplib::Response& res) {
     // Parse query parameters
@@ -50,7 +48,7 @@ void EventHandler::handle_journal_events(const httplib::Request& req, httplib::R
         }
     }
 
-    auto result = get_journal_events(limit + offset, 0);
+    auto result = journal_store_.get_recent(limit + offset);
 
     if (!result) {
         res.status = 500;
@@ -60,7 +58,7 @@ void EventHandler::handle_journal_events(const httplib::Request& req, httplib::R
     }
 
     // Apply offset (simple approach)
-    std::vector<JournalEventRecord> events;
+    std::vector<vigilant_canine::JournalEventRecord> events;
     auto& all_events = *result;
     if (offset < static_cast<int>(all_events.size())) {
         auto start = all_events.begin() + offset;
@@ -143,46 +141,6 @@ void EventHandler::handle_audit_events(const httplib::Request& req, httplib::Res
 
     res.status = 200;
     res.set_content(response, "application/json");
-}
-
-auto EventHandler::get_journal_events(int limit, int offset)
-    -> std::expected<std::vector<JournalEventRecord>, std::string> {
-
-    auto stmt_result = db_.prepare(R"(
-        SELECT id, rule_name, message, priority, unit_name, created_at
-        FROM journal_events
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-    )");
-
-    if (!stmt_result) {
-        return std::unexpected(stmt_result.error());
-    }
-
-    sqlite3_stmt* stmt = *stmt_result;
-    sqlite3_bind_int(stmt, 1, limit);
-    sqlite3_bind_int(stmt, 2, offset);
-
-    std::vector<JournalEventRecord> events;
-
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        JournalEventRecord event;
-        event.id = sqlite3_column_int64(stmt, 0);
-        event.rule_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        event.message = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        event.priority = sqlite3_column_int(stmt, 3);
-
-        if (sqlite3_column_type(stmt, 4) != SQLITE_NULL) {
-            event.unit_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-        }
-
-        event.created_at = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
-
-        events.push_back(std::move(event));
-    }
-
-    sqlite3_finalize(stmt);
-    return events;
 }
 
 } // namespace vigilant_canine::api

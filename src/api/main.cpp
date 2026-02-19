@@ -8,6 +8,7 @@
 #include <storage/alert_store.h>
 #include <storage/baseline_store.h>
 #include <storage/audit_event_store.h>
+#include <storage/journal_event_store.h>
 
 #include <csignal>
 #include <cstdlib>
@@ -104,9 +105,10 @@ auto main(int argc, char* argv[]) -> int {
         vigilant_canine::AlertStore alert_store(db);
         vigilant_canine::BaselineStore baseline_store(db);
         vigilant_canine::AuditEventStore audit_event_store(db);
+        vigilant_canine::JournalEventStore journal_event_store(db);
 
         // Create event handler
-        vigilant_canine::api::EventHandler event_handler(db, audit_event_store);
+        vigilant_canine::api::EventHandler event_handler(journal_event_store, audit_event_store);
 
         // Create HTTP server
         vigilant_canine::api::HttpServer server(socket_path, alert_store, baseline_store, event_handler);

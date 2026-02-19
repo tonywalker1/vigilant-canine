@@ -262,3 +262,48 @@ on a host-level security tool. Unix socket provides the same functionality with 
 
 Compromising the API daemon or web UI does not grant root access. The core daemon accepts only a narrow set of
 commands over its internal socket (e.g., rescan, reload config) and validates them strictly.
+
+## Database Retention
+
+The vigilant-canine daemon implements automatic database retention to prevent unbounded growth.
+
+### Cleanup Timing
+
+- **At startup**: The daemon runs retention cleanup once when it starts, ensuring that extended shutdowns don't accumulate stale data.
+- **Periodically**: The daemon checks whether cleanup is due in the main event loop based on `interval_hours` configuration (default: 24 hours).
+
+This dual approach ensures the database stays clean without requiring external cron jobs or systemd timers.
+
+### Retention Policies
+
+| Table               | Default Retention | Rationale                                    |
+|---------------------|-------------------|----------------------------------------------|
+| `alerts`            | 90 days           | Security incidents, referenced longer        |
+| `audit_events`      | 30 days           | High-volume forensic data, standard rotation |
+| `journal_events`    | 30 days           | High-volume log data, matches audit events   |
+| `scans`             | 90 days           | Audit trail of verifications, debugging      |
+| `baselines`         | Never pruned      | Reference data, needed for integrity checks  |
+| `schema_version`    | Never pruned      | Migration bookkeeping                        |
+
+Retention periods are fully configurable via `[retention]` in the configuration file. Setting a retention period to `0` means "keep forever" (not recommended for high-volume tables).
+
+### Error Handling
+
+All pruning operations are **non-fatal**:
+- Failures are logged as warnings to the systemd journal
+- The daemon continues running even if cleanup fails
+- The database remains functional, it just grows larger
+- This ensures that retention issues don't bring down the daemon
+
+The failure mode is graceful: disk usage increases, but the system keeps running.
+
+### Implementation Details
+
+Pruning uses SQLite's `datetime()` function to delete records older than the configured retention period:
+
+```sql
+DELETE FROM table_name
+WHERE created_at < datetime('now', '-' || ? || ' days')
+```
+
+This approach is efficient and leverages SQLite's timestamp handling without needing application-side date parsing.

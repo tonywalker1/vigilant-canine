@@ -120,6 +120,12 @@ namespace vigilant_canine {
         [[nodiscard]] auto unacknowledge(std::int64_t alert_id)
             -> std::expected<void, std::string>;
 
+        //
+        // Delete alerts older than specified days.
+        //
+        [[nodiscard]] auto prune_old_alerts(int days = 90)
+            -> std::expected<void, std::string>;
+
     private:
         Database& m_db;
     };

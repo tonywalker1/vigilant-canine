@@ -130,7 +130,7 @@ std::string to_json(const JournalEventRecord& event) {
     oss << "\"rule_name\":\"" << escape(event.rule_name) << "\",";
     oss << "\"message\":\"" << escape(event.message) << "\",";
     oss << "\"priority\":" << event.priority << ",";
-    oss << "\"unit_name\":\"" << escape(event.unit_name) << "\",";
+    oss << "\"unit_name\":\"" << escape(event.unit_name.value_or("")) << "\",";
     oss << "\"created_at\":\"" << escape(event.created_at) << "\"";
     oss << "}";
     return oss.str();
