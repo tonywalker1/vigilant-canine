@@ -257,6 +257,11 @@ namespace vigilant_canine {
         m_baseline_store = std::make_unique<BaselineStore>(*m_database);
         m_alert_store = std::make_unique<AlertStore>(*m_database);
         m_audit_event_store = std::make_unique<AuditEventStore>(*m_database);  // Phase 3
+        m_journal_event_store = std::make_unique<JournalEventStore>(*m_database);
+        m_scan_store = std::make_unique<ScanStore>(*m_database);
+
+        // Initialize retention cleanup timestamp
+        m_last_retention_cleanup = std::chrono::system_clock::time_point{};  // Epoch
 
         // Create event bus
         m_event_bus = std::make_unique<EventBus>();
@@ -523,6 +528,9 @@ namespace vigilant_canine {
             sd_journal_print(LOG_INFO, "vigilant-canined: Distributed scanner started");
         }
 
+        // Run retention cleanup on startup
+        run_retention_cleanup();
+
         m_running.store(true);
         sd_journal_print(LOG_INFO, "vigilant-canined: Daemon running");
 
@@ -533,6 +541,14 @@ namespace vigilant_canine {
             // Phase 2: Drain correlation escalated events
             if (m_correlation_engine) {
                 m_correlation_engine->drain_escalated_events(*m_event_bus);
+            }
+
+            // Check if retention cleanup is due
+            auto now = std::chrono::system_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::hours>(
+                now - m_last_retention_cleanup);
+            if (elapsed.count() >= static_cast<long>(m_config.retention.interval_hours)) {
+                run_retention_cleanup();
             }
 
             if (m_should_reload.load()) {
@@ -795,6 +811,58 @@ namespace vigilant_canine {
         }
 
         return {};
+    }
+
+    void Daemon::run_retention_cleanup() {
+        if (!m_config.retention.enabled) {
+            return;
+        }
+
+        sd_journal_print(LOG_INFO, "vigilant-canined: Running database retention cleanup");
+
+        // Prune each table with configured retention period
+        // Log warnings on failure but continue (non-fatal)
+
+        if (m_config.retention.alert_days > 0) {
+            auto result = m_alert_store->prune_old_alerts(m_config.retention.alert_days);
+            if (!result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Failed to prune alerts: %s",
+                    result.error().c_str());
+            }
+        }
+
+        if (m_config.retention.audit_event_days > 0) {
+            auto result = m_audit_event_store->prune_old_events(
+                m_config.retention.audit_event_days);
+            if (!result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Failed to prune audit events: %s",
+                    result.error().c_str());
+            }
+        }
+
+        if (m_config.retention.journal_event_days > 0) {
+            auto result = m_journal_event_store->prune_old_events(
+                m_config.retention.journal_event_days);
+            if (!result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Failed to prune journal events: %s",
+                    result.error().c_str());
+            }
+        }
+
+        if (m_config.retention.scan_days > 0) {
+            auto result = m_scan_store->prune_old_scans(m_config.retention.scan_days);
+            if (!result) {
+                sd_journal_print(LOG_WARNING,
+                    "vigilant-canined: Failed to prune scans: %s",
+                    result.error().c_str());
+            }
+        }
+
+        m_last_retention_cleanup = std::chrono::system_clock::now();
+        sd_journal_print(LOG_INFO, "vigilant-canined: Retention cleanup completed");
     }
 
 }  // namespace vigilant_canine

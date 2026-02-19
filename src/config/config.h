@@ -76,6 +76,15 @@ namespace vigilant_canine {
         std::uint8_t battery_pause_threshold{20};   // Pause below this %
     };
 
+    struct RetentionConfig {
+        bool enabled{true};
+        std::uint32_t interval_hours{24};
+        std::uint32_t alert_days{90};
+        std::uint32_t audit_event_days{30};
+        std::uint32_t journal_event_days{30};
+        std::uint32_t scan_days{90};
+    };
+
     //
     // Phase 2: Journal monitoring configuration.
     //
@@ -167,6 +176,7 @@ namespace vigilant_canine {
         MonitorConfig monitor;
         AlertConfig alerts;
         ScanConfig scan;
+        RetentionConfig retention;
         JournalConfig journal;          // Phase 2
         CorrelationConfig correlation;  // Phase 2
         AuditConfig audit;              // Phase 3

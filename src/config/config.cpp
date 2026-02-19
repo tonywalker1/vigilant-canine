@@ -168,6 +168,33 @@ namespace vigilant_canine {
             return cfg;
         }
 
+        auto parse_retention(toml::table const& root) -> RetentionConfig {
+            RetentionConfig cfg;
+
+            if (auto retention = root["retention"].as_table()) {
+                cfg.enabled = get_or(*retention, "enabled", cfg.enabled);
+
+                // Parse integer fields
+                if (auto interval = (*retention)["interval_hours"].value<std::int64_t>()) {
+                    cfg.interval_hours = static_cast<std::uint32_t>(*interval);
+                }
+                if (auto days = (*retention)["alert_days"].value<std::int64_t>()) {
+                    cfg.alert_days = static_cast<std::uint32_t>(*days);
+                }
+                if (auto days = (*retention)["audit_event_days"].value<std::int64_t>()) {
+                    cfg.audit_event_days = static_cast<std::uint32_t>(*days);
+                }
+                if (auto days = (*retention)["journal_event_days"].value<std::int64_t>()) {
+                    cfg.journal_event_days = static_cast<std::uint32_t>(*days);
+                }
+                if (auto days = (*retention)["scan_days"].value<std::int64_t>()) {
+                    cfg.scan_days = static_cast<std::uint32_t>(*days);
+                }
+            }
+
+            return cfg;
+        }
+
         //
         // Parse string array from TOML.
         //
@@ -372,6 +399,7 @@ namespace vigilant_canine {
             cfg.monitor = parse_monitor(toml);
             cfg.alerts = parse_alerts(toml);
             cfg.scan = parse_scan(toml);
+            cfg.retention = parse_retention(toml);
             cfg.journal = parse_journal(toml);            // Phase 2
             cfg.correlation = parse_correlation(toml);    // Phase 2
             cfg.audit = parse_audit(toml);                // Phase 3

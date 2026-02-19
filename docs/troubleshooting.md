@@ -231,6 +231,79 @@ If using a non-mainstream distribution, you may need to wait for additional pack
 
 ## Performance Issues
 
+### Database growing too large
+
+**Symptom:**
+
+Database file at `/var/lib/vigilant-canine/vigilant-canine.db` consumes excessive disk space.
+
+**Diagnosis:**
+
+Check database size:
+
+```bash
+du -h /var/lib/vigilant-canine/vigilant-canine.db
+```
+
+Check if retention is enabled:
+
+```bash
+grep -A5 "\[retention\]" /etc/vigilant-canine/config.toml
+```
+
+Check retention cleanup in logs:
+
+```bash
+sudo journalctl -u vigilant-canined | grep "retention cleanup"
+```
+
+**Solutions:**
+
+1. **Ensure retention is enabled** (default: enabled):
+   ```toml
+   [retention]
+   enabled = true
+   interval_hours = 24  # Run daily
+   ```
+
+2. **Reduce retention periods** if database still grows:
+   ```toml
+   [retention]
+   alert_days = 30          # Default: 90
+   audit_event_days = 7     # Default: 30
+   journal_event_days = 7   # Default: 30
+   scan_days = 30           # Default: 90
+   ```
+
+3. **Manual cleanup** (if retention is disabled):
+   ```bash
+   # Stop daemon
+   sudo systemctl stop vigilant-canined
+
+   # Manually prune old records
+   sqlite3 /var/lib/vigilant-canine/vigilant-canine.db <<'EOF'
+   DELETE FROM alerts WHERE created_at < datetime('now', '-90 days');
+   DELETE FROM audit_events WHERE created_at < datetime('now', '-30 days');
+   DELETE FROM journal_events WHERE created_at < datetime('now', '-30 days');
+   DELETE FROM scans WHERE started_at < datetime('now', '-90 days');
+   VACUUM;
+   EOF
+
+   # Restart daemon
+   sudo systemctl start vigilant-canined
+   ```
+
+4. **Check for retention cleanup failures**:
+   ```bash
+   sudo journalctl -u vigilant-canined | grep -i "prune\|retention" | tail -20
+   ```
+
+**Notes:**
+- Retention cleanup runs automatically at daemon startup and periodically (default: every 24 hours)
+- The `baselines` table is never pruned (contains reference data needed for integrity checks)
+- Cleanup failures are logged as warnings but don't stop the daemon
+- Setting `*_days = 0` means "keep forever" for that table type
+
 ### High CPU usage during scan
 
 **Symptom:**

@@ -165,6 +165,56 @@ on_boot = true
   - Increases boot time slightly
   - Default: `true`
 
+### `[retention]` - Database Retention
+
+```toml
+[retention]
+enabled = true
+interval_hours = 24
+alert_days = 90
+audit_event_days = 30
+journal_event_days = 30
+scan_days = 90
+```
+
+- **enabled**: Enable automatic database cleanup
+  - Prunes old records to prevent unbounded database growth
+  - Default: `true`
+
+- **interval_hours**: Cleanup frequency in hours
+  - How often the daemon runs retention cleanup
+  - Cleanup also runs once at daemon startup
+  - Default: `24` (daily)
+
+- **alert_days**: Alert retention period in days
+  - Alerts older than this are deleted
+  - `0` means keep forever (not recommended)
+  - Default: `90` (security incidents referenced longer for investigation)
+
+- **audit_event_days**: Audit event retention period in days
+  - Audit subsystem events older than this are deleted
+  - High-volume forensic data
+  - Default: `30` (standard log retention)
+
+- **journal_event_days**: Journal event retention period in days
+  - Journal log events older than this are deleted
+  - High-volume log data
+  - Default: `30` (matches audit events)
+
+- **scan_days**: Scan history retention period in days
+  - Scan records older than this are deleted
+  - Audit trail of baseline verifications
+  - Default: `90` (useful for debugging)
+
+**Important Notes:**
+- The `baselines` table is never pruned - it contains reference data
+- The `schema_version` table is never pruned - it tracks database migrations
+- Retention cleanup failures are logged as warnings but are non-fatal
+- Database continues to work even if cleanup fails (it just grows larger)
+- To disable retention entirely, set `enabled = false`
+
+**Disk Space Warning:** Disabling retention or using very long retention periods can cause the database to grow large over time. Monitor disk usage if you customize these settings.
+
 ### `[journal]` - Journal Monitoring (Phase 2)
 
 ```toml

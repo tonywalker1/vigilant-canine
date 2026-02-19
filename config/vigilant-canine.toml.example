@@ -106,6 +106,21 @@ battery_slowdown_factor = 2.0
 # Pause verification when battery level drops below this percentage
 battery_pause_threshold = 20
 
+[retention]
+# Automatic database cleanup
+enabled = true
+
+# Cleanup frequency (hours)
+interval_hours = 24
+
+# Retention periods (days) - 0 means keep forever
+alert_days = 90              # Security alerts
+audit_event_days = 30        # Audit subsystem events
+journal_event_days = 30      # Journal log events
+scan_days = 90               # Baseline scan history
+
+# Note: baselines and schema_version tables are never pruned
+
 [journal]
 # Enable systemd journal monitoring
 enabled = true
