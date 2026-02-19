@@ -115,14 +115,15 @@ namespace vigilant_canine {
     };
 
     //
-    // Ensure database directory exists and has NOCOW attribute on Btrfs.
+    // Ensure database directory exists and has NOCOW attribute.
     //
     // Preconditions:
     //   - db_path is a file path (not a directory)
     //
     // Postconditions:
-    //   - Parent directory exists
-    //   - On Btrfs: directory has NOCOW attribute set
+    //   - Directory exists (created if needed)
+    //   - Directory has NOCOW attribute set (on COW filesystems)
+    //   - On error: returns error message
     //
     [[nodiscard]] auto ensure_database_directory(std::filesystem::path const& db_path)
         -> std::expected<void, std::string>;

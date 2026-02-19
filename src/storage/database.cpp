@@ -11,9 +11,7 @@
 #include <hinder/exception/exception.h>
 
 #include <sys/ioctl.h>
-#include <sys/vfs.h>
 #include <linux/fs.h>
-#include <linux/magic.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -26,18 +24,14 @@ namespace vigilant_canine {
     namespace {
 
         //
-        // Check if a filesystem is Btrfs.
+        // Set NOCOW attribute on a file or directory.
         //
-        auto is_btrfs(std::filesystem::path const& path) -> bool {
-            struct statfs fs_stat {};
-            if (statfs(path.c_str(), &fs_stat) != 0) {
-                return false;
-            }
-            return fs_stat.f_type == BTRFS_SUPER_MAGIC;
-        }
-
+        // This optimizes SQLite performance on copy-on-write filesystems
+        // (Btrfs, ZFS, bcachefs, etc.) by disabling COW for database files.
         //
-        // Set NOCOW attribute on a file or directory (Btrfs-specific).
+        // The ioctl is silently ignored on non-COW filesystems (harmless).
+        // Failure to set nocow is not fatal - databases work fine with COW,
+        // just with some performance overhead.
         //
         auto set_nocow_attribute(std::filesystem::path const& path) -> bool {
             int fd = open(path.c_str(), O_RDONLY);
@@ -70,11 +64,9 @@ namespace vigilant_canine {
             if (!std::filesystem::exists(dir)) {
                 std::filesystem::create_directories(dir);
 
-                // Set NOCOW on Btrfs (for SQLite performance)
-                if (is_btrfs(dir)) {
-                    set_nocow_attribute(dir);
-                    // Not a fatal error if this fails - log but continue
-                }
+                // Set NOCOW for SQLite performance (works on all COW filesystems)
+                // Silently ignored on non-COW filesystems (harmless)
+                set_nocow_attribute(dir);
             }
 
             return {};
@@ -113,7 +105,7 @@ namespace vigilant_canine {
     auto Database::open(std::filesystem::path const& db_path)
         -> std::expected<Database, std::string> {
 
-        // Ensure directory exists and has NOCOW on Btrfs
+        // Ensure directory exists and has NOCOW
         if (auto result = ensure_database_directory(db_path); !result) {
             return std::unexpected(result.error());
         }
@@ -126,6 +118,10 @@ namespace vigilant_canine {
             sqlite3_close(db);
             return std::unexpected(std::format("Failed to open database: {}", error));
         }
+
+        // Set NOCOW on the database file itself (for existing files)
+        // Directory nocow only affects new files, so we must also set it explicitly
+        set_nocow_attribute(db_path);
 
         Database database{db};
 

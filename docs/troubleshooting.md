@@ -360,6 +360,68 @@ exclude = [
 ]
 ```
 
+### Database fragmentation on COW filesystems
+
+**Symptom:**
+
+Slow database queries or high I/O wait on copy-on-write filesystems (Btrfs, ZFS, bcachefs).
+
+**Diagnosis:**
+
+Check if nocow is set:
+
+```bash
+lsattr /var/lib/vigilant-canine/vigilant-canine.db
+# Should show: -------C-------- (C = nocow)
+```
+
+Check fragmentation (Btrfs):
+
+```bash
+sudo filefrag /var/lib/vigilant-canine/vigilant-canine.db
+```
+
+High fragment counts (>1000) indicate fragmentation. On ext4/XFS, the nocow flag won't be shown but the database should perform well regardless.
+
+**Solution:**
+
+The daemon automatically sets nocow on database directories and files at creation/open. If you have an existing database from before this feature was added:
+
+```bash
+# Stop daemon
+sudo systemctl stop vigilant-canined vigilant-canined-api
+
+# Set nocow on directory (affects new files)
+sudo chattr +C /var/lib/vigilant-canine
+
+# For existing database file, must recreate to defragment
+cd /var/lib/vigilant-canine
+sudo mv vigilant-canine.db vigilant-canine.db.old
+sudo chattr +C .
+sudo cp --reflink=never vigilant-canine.db.old vigilant-canine.db
+sudo rm vigilant-canine.db.old
+
+# Verify nocow is set
+lsattr vigilant-canine.db  # Should show C flag
+
+# Restart daemons
+sudo systemctl start vigilant-canined vigilant-canined-api
+```
+
+**Alternative (Btrfs defragment):**
+
+```bash
+sudo systemctl stop vigilant-canined vigilant-canined-api
+sudo btrfs filesystem defragment /var/lib/vigilant-canine/vigilant-canine.db
+sudo systemctl start vigilant-canined vigilant-canined-api
+```
+
+Note: Btrfs defragment may not fully work if nocow isn't set. The copy method above is more reliable.
+
+**Prevention:**
+
+Modern installations automatically get nocow via tmpfiles.d configuration. This issue only affects databases created before the nocow feature was added.
+
 ## Logging and Debugging
 
 ### Enable debug logging
