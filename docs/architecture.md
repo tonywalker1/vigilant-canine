@@ -307,3 +307,31 @@ WHERE created_at < datetime('now', '-' || ? || ' days')
 ```
 
 This approach is efficient and leverages SQLite's timestamp handling without needing application-side date parsing.
+
+## Database Storage Optimization
+
+### Copy-on-Write (COW) Handling
+
+SQLite databases perform poorly on copy-on-write filesystems due to excessive fragmentation from small random writes. Vigilant Canine automatically sets the NOCOW attribute on database directories and files.
+
+**Supported filesystems:**
+- Btrfs — via `FS_NOCOW_FL` ioctl flag
+- ZFS — ioctl silently ignored (filesystem doesn't support it)
+- bcachefs — ioctl silently ignored or may work (depends on kernel version)
+- ext4/XFS/other non-COW filesystems — ioctl silently ignored (harmless)
+
+**Implementation:**
+- Directory `/var/lib/vigilant-canine` created with nocow via tmpfiles.d (`h+C` attribute)
+- Runtime: nocow set on directory and database file via `FS_IOC_SETFLAGS` ioctl
+- Failures are non-fatal — databases work fine with COW, just with some performance overhead
+
+**When it applies:**
+- New database files inherit nocow from parent directory (on supporting filesystems)
+- Existing database files have nocow set explicitly on open
+- WAL and journal files inherit from directory
+
+**Rationale for unconditional setting:**
+- The ioctl is silently ignored on non-COW filesystems (harmless)
+- Detecting all COW filesystems is fragile and incomplete (new filesystems, custom builds)
+- No downside to attempting — worst case is a silent no-op
+- Simplifies code and handles all current and future COW filesystems
