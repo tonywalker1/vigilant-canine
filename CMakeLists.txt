@@ -180,6 +180,9 @@ if(VC_BUILD_BENCHMARKS)
 endif()
 
 # Installation
+# Override GNUInstallDirs default of "etc" (relative to prefix, giving /usr/etc)
+# System config files belong in /etc, not /usr/etc
+set(CMAKE_INSTALL_SYSCONFDIR /etc CACHE PATH "System configuration directory")
 include(GNUInstallDirs)
 
 # Binaries
