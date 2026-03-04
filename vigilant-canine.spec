@@ -91,7 +91,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/%{name}
 %{_unitdir}/vigilant-canined-api.service
 
 %changelog
-* Thu Feb 13 2026 Tony Narlock <tony@git-pull.com> - 0.1.0-1
+* Thu Feb 13 2026 Tony Walker <tony.walker.iu@gmail.com> - 0.1.0-1
 - Initial package release
 - File integrity monitoring via fanotify
 - Log analysis via systemd journal

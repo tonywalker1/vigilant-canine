@@ -45,6 +45,7 @@ set(HTTPLIB_REQUIRE_OPENSSL OFF)
 set(HTTPLIB_REQUIRE_ZLIB OFF)
 set(HTTPLIB_USE_OPENSSL_IF_AVAILABLE OFF)
 set(HTTPLIB_USE_ZLIB_IF_AVAILABLE OFF)
+set(HTTPLIB_INSTALL OFF CACHE BOOL "" FORCE)  # Don't install headers/cmake files into system
 FetchContent_MakeAvailable(cpp-httplib)
 
 # BLAKE3 - use system package (blake3-devel)
