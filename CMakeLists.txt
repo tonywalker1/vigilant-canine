@@ -180,9 +180,6 @@ if(VC_BUILD_BENCHMARKS)
 endif()
 
 # Installation
-# Override GNUInstallDirs default of "etc" (relative to prefix, giving /usr/etc)
-# System config files belong in /etc, not /usr/etc
-set(CMAKE_INSTALL_SYSCONFDIR /etc CACHE PATH "System configuration directory")
 include(GNUInstallDirs)
 
 # Binaries
@@ -191,8 +188,10 @@ install(TARGETS vigilant-canined vigilant-canined-api
 )
 
 # Configuration example
+# Use CMAKE_INSTALL_FULL_SYSCONFDIR (absolute): GNUInstallDirs resolves "etc" to /etc
+# when prefix is /usr, so the relative CMAKE_INSTALL_SYSCONFDIR would give /usr/etc.
 install(FILES config/vigilant-canine.toml.example
-    DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/vigilant-canine
+    DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/vigilant-canine
     RENAME config.toml.example
 )
 
