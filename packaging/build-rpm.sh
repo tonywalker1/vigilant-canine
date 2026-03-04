@@ -24,19 +24,29 @@ cp vigilant-canine.spec ~/rpmbuild/SPECS/
 # Build SRPM
 rpmbuild -bs ~/rpmbuild/SPECS/vigilant-canine.spec
 
-# Build RPM (or use mock for clean environment)
-if command -v mock &> /dev/null; then
+# Detect container environment (distrobox, docker, podman) where mock cannot nest containers
+in_container() {
+    [ -f /run/.containerenv ] || [ -f /.dockerenv ] || [ -n "${container:-}" ]
+}
+
+# Build RPM (or use mock for clean environment, unless inside a container)
+if command -v mock &> /dev/null && ! in_container; then
     echo "Building with mock for clean environment..."
     mock -r fedora-$(rpm -E %fedora)-$(uname -m) \
         ~/rpmbuild/SRPMS/vigilant-canine-$VERSION-*.src.rpm
+    MOCK_USED=1
 else
-    echo "Building with rpmbuild (install 'mock' for cleaner builds)..."
+    if in_container; then
+        echo "Container environment detected — skipping mock (nested containers not supported)."
+    fi
+    echo "Building with rpmbuild..."
     rpmbuild -bb ~/rpmbuild/SPECS/vigilant-canine.spec
+    MOCK_USED=0
 fi
 
 echo "Build complete!"
 echo "SRPM: ~/rpmbuild/SRPMS/vigilant-canine-$VERSION-*.src.rpm"
-if command -v mock &> /dev/null; then
+if [ "${MOCK_USED:-0}" = "1" ]; then
     echo "RPM: /var/lib/mock/fedora-$(rpm -E %fedora)-$(uname -m)/result/*.rpm"
 else
     echo "RPM: ~/rpmbuild/RPMS/*/vigilant-canine-*.rpm"
