@@ -372,7 +372,7 @@ ls -la /etc/vigilant-canine
 This is normal. The daemon is building the initial baseline. Wait for completion or adjust scan settings in configuration.
 
 **No alerts appearing:**
-Check that monitoring is enabled in configuration and that the daemon has appropriate permissions (requires root or CAP_DAC_READ_SEARCH + CAP_AUDIT_READ).
+Check that monitoring is enabled in configuration and that the daemon has appropriate permissions (requires root or CAP_DAC_READ_SEARCH + CAP_AUDIT_READ + CAP_SYS_ADMIN).
 
 ## Next Steps
 

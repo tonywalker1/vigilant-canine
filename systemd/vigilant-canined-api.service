@@ -6,7 +6,7 @@ Requires=vigilant-canined.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/vigilant-canined-api --database /var/lib/vigilant-canine/vigilant-canine.db --socket /run/vigilant-canine/api.sock
+ExecStart=/usr/local/bin/vigilant-canined-api --database /var/lib/vigilant-canine/vc.db --socket /run/vigilant-canine/api.sock
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=30
@@ -32,7 +32,8 @@ RestrictNamespaces=yes
 RestrictAddressFamilies=AF_UNIX
 
 # Filesystem access
-ReadWritePaths=/run/vigilant-canine
+RuntimeDirectory=vigilant-canine
+RuntimeDirectoryMode=0750
 ReadOnlyPaths=/etc/vigilant-canine /var/lib/vigilant-canine
 
 # System call filtering

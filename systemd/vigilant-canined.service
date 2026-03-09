@@ -6,7 +6,7 @@ Wants=auditd.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/vigilant-canined --config /etc/vigilant-canine/config.toml
+ExecStart=/usr/local/bin/vigilant-canined --config /etc/vigilant-canine/config.toml
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=30
@@ -17,8 +17,8 @@ User=root
 Group=root
 
 # Capabilities
-AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_AUDIT_READ
-CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_AUDIT_READ
+AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_AUDIT_READ CAP_SYS_ADMIN
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_AUDIT_READ CAP_SYS_ADMIN
 
 # Security Hardening
 NoNewPrivileges=yes
@@ -42,7 +42,7 @@ ReadOnlyPaths=/etc/vigilant-canine
 # System call filtering
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources
-SystemCallFilter=fanotify_init fanotify_mark inotify_init inotify_add_watch
+SystemCallFilter=fanotify_init fanotify_mark inotify_init inotify_add_watch fchown
 
 # Memory protection
 MemoryDenyWriteExecute=yes

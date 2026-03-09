@@ -76,7 +76,6 @@ namespace vigilant_canine {
 
         m_monitor_thread = std::thread([this] { monitor_loop(); });
 
-        sd_journal_print(LOG_INFO, "vigilant-canined: Audit monitor started");
         return {};
     }
 

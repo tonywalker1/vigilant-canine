@@ -180,7 +180,7 @@ sudo journalctl -u vigilant-canined -n 20
 1. Ensure `journal.enabled = true` in config
 2. Check `journal.max_priority` - lower numbers = less coverage (default 6 = info)
 3. Verify the service isn't excluded in `journal.exclude_units`
-4. Check daemon has `CAP_AUDIT_READ` capability or runs as root
+4. Check daemon has `CAP_AUDIT_READ` and `CAP_SYS_ADMIN` capabilities or runs as root
 
 ### Excessive journal alerts
 
@@ -235,14 +235,14 @@ If using a non-mainstream distribution, you may need to wait for additional pack
 
 **Symptom:**
 
-Database file at `/var/lib/vigilant-canine/vigilant-canine.db` consumes excessive disk space.
+Database file at `/var/lib/vigilant-canine/vc.db` consumes excessive disk space.
 
 **Diagnosis:**
 
 Check database size:
 
 ```bash
-du -h /var/lib/vigilant-canine/vigilant-canine.db
+du -h /var/lib/vigilant-canine/vc.db
 ```
 
 Check if retention is enabled:
@@ -281,7 +281,7 @@ sudo journalctl -u vigilant-canined | grep "retention cleanup"
    sudo systemctl stop vigilant-canined
 
    # Manually prune old records
-   sqlite3 /var/lib/vigilant-canine/vigilant-canine.db <<'EOF'
+   sqlite3 /var/lib/vigilant-canine/vc.db <<'EOF'
    DELETE FROM alerts WHERE created_at < datetime('now', '-90 days');
    DELETE FROM audit_events WHERE created_at < datetime('now', '-30 days');
    DELETE FROM journal_events WHERE created_at < datetime('now', '-30 days');
@@ -371,14 +371,14 @@ Slow database queries or high I/O wait on copy-on-write filesystems (Btrfs, ZFS,
 Check if nocow is set:
 
 ```bash
-lsattr /var/lib/vigilant-canine/vigilant-canine.db
+lsattr /var/lib/vigilant-canine/vc.db
 # Should show: -------C-------- (C = nocow)
 ```
 
 Check fragmentation (Btrfs):
 
 ```bash
-sudo filefrag /var/lib/vigilant-canine/vigilant-canine.db
+sudo filefrag /var/lib/vigilant-canine/vc.db
 ```
 
 High fragment counts (>1000) indicate fragmentation. On ext4/XFS, the nocow flag won't be shown but the database should perform well regardless.
@@ -396,13 +396,13 @@ sudo chattr +C /var/lib/vigilant-canine
 
 # For existing database file, must recreate to defragment
 cd /var/lib/vigilant-canine
-sudo mv vigilant-canine.db vigilant-canine.db.old
+sudo mv vc.db vc.db.old
 sudo chattr +C .
-sudo cp --reflink=never vigilant-canine.db.old vigilant-canine.db
-sudo rm vigilant-canine.db.old
+sudo cp --reflink=never vc.db.old vc.db
+sudo rm vc.db.old
 
 # Verify nocow is set
-lsattr vigilant-canine.db  # Should show C flag
+lsattr vc.db  # Should show C flag
 
 # Restart daemons
 sudo systemctl start vigilant-canined vigilant-canined-api
@@ -412,7 +412,7 @@ sudo systemctl start vigilant-canined vigilant-canined-api
 
 ```bash
 sudo systemctl stop vigilant-canined vigilant-canined-api
-sudo btrfs filesystem defragment /var/lib/vigilant-canine/vigilant-canine.db
+sudo btrfs filesystem defragment /var/lib/vigilant-canine/vc.db
 sudo systemctl start vigilant-canined vigilant-canined-api
 ```
 
@@ -572,7 +572,7 @@ sudo journalctl -u vigilant-canined -xe
 ```
 
 Common causes:
-- **Missing capabilities**: Service needs `CAP_DAC_READ_SEARCH` and `CAP_AUDIT_READ`
+- **Missing capabilities**: Service needs `CAP_DAC_READ_SEARCH`, `CAP_AUDIT_READ`, and `CAP_SYS_ADMIN`
 - **Invalid config**: Check `/etc/vigilant-canine/config.toml` syntax (TOML format)
 - **Database permissions**: `/var/lib/vigilant-canine/` must be writable by root
 - **Missing directories**: Run `sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/vigilant-canine.conf`
@@ -599,7 +599,7 @@ The daemon gracefully degrades if audit is unavailable (file and log monitoring 
 systemd-analyze security vigilant-canined.service
 ```
 
-Should show high security score with CAP_DAC_READ_SEARCH and CAP_AUDIT_READ as only ambient capabilities.
+Should show high security score with CAP_DAC_READ_SEARCH, CAP_AUDIT_READ, and CAP_SYS_ADMIN as ambient capabilities.
 
 **Service restarts repeatedly:**
 

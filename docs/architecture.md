@@ -54,7 +54,7 @@ distributions.
 ### vigilant-canined (core daemon)
 
 The privileged engine that performs actual monitoring. Runs as root or with specific Linux capabilities
-(`CAP_DAC_READ_SEARCH`, `CAP_AUDIT_READ`).
+(`CAP_DAC_READ_SEARCH`, `CAP_AUDIT_READ`, `CAP_SYS_ADMIN`).
 
 Responsibilities:
 - File integrity monitoring via fanotify (with inotify as a fallback where needed)
@@ -255,7 +255,7 @@ on a host-level security tool. Unix socket provides the same functionality with 
 
 | Component              | Runs as         | Capabilities needed                        |
 |------------------------|-----------------|---------------------------------------------|
-| vigilant-canined       | root (or caps)  | CAP_DAC_READ_SEARCH, CAP_AUDIT_READ         |
+| vigilant-canined       | root (or caps)  | CAP_DAC_READ_SEARCH, CAP_AUDIT_READ, CAP_SYS_ADMIN |
 | vigilant-canined-api   | unprivileged    | Read access to SQLite DB, socket to daemon   |
 | Web UI                 | browser         | Talks to API via Unix socket (or proxy)      |
 | Notification client    | user session    | D-Bus session bus access                     |

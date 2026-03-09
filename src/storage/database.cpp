@@ -123,6 +123,13 @@ namespace vigilant_canine {
         // Directory nocow only affects new files, so we must also set it explicitly
         set_nocow_attribute(db_path);
 
+        // Enable WAL mode for concurrent access between main daemon and API daemon.
+        // WAL allows readers and the writer to coexist without blocking each other.
+        sqlite3_exec(db, "PRAGMA journal_mode=WAL", nullptr, nullptr, nullptr);
+
+        // Set busy timeout so concurrent access retries instead of immediately failing.
+        sqlite3_busy_timeout(db, 5000);
+
         Database database{db};
 
         // Initialize schema
