@@ -6,7 +6,7 @@ Requires=vigilant-canined.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/vigilant-canined-api --database /var/lib/vigilant-canine/vc.db --socket /run/vigilant-canine/api.sock
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/vigilant-canined-api --database /var/lib/vigilant-canine/vc.db --socket /run/vigilant-canine/api.sock
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=30

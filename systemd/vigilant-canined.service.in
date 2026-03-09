@@ -6,7 +6,7 @@ Wants=auditd.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/vigilant-canined --config /etc/vigilant-canine/config.toml
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/vigilant-canined --config /etc/vigilant-canine/config.toml
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=30

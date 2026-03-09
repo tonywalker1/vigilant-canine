@@ -209,9 +209,12 @@ if(NOT TMPFILES_DIR)
     set(TMPFILES_DIR /usr/lib/tmpfiles.d)
 endif()
 
+configure_file(systemd/vigilant-canined.service.in vigilant-canined.service @ONLY)
+configure_file(systemd/vigilant-canined-api.service.in vigilant-canined-api.service @ONLY)
+
 install(FILES
-    systemd/vigilant-canined.service
-    systemd/vigilant-canined-api.service
+    ${CMAKE_CURRENT_BINARY_DIR}/vigilant-canined.service
+    ${CMAKE_CURRENT_BINARY_DIR}/vigilant-canined-api.service
     DESTINATION ${SYSTEMD_SYSTEM_UNIT_DIR}
 )
 
